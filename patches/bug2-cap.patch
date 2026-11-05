@@ -16,7 +16,7 @@ diff --git a/pkg/models/geo.go b/pkg/models/geo.go
 diff --git a/pkg/scd/models/conversions.go b/pkg/scd/models/conversions.go
 --- a/pkg/scd/models/conversions.go
 +++ b/pkg/scd/models/conversions.go
-@@ -164,6 +164,6 @@
+@@ -164,5 +164,5 @@
 -	return geo.RegionCoverer.Covering(s2.RegularLoop(
 -		s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng)),
 -		geo.DistanceMetersToAngle(float64(c.Radius.Value)),
