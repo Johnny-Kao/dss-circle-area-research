@@ -1,0 +1,38 @@
+diff --git a/pkg/models/geo.go b/pkg/models/geo.go
+index 2c3fa51..26d8772 100644
+--- a/pkg/models/geo.go
++++ b/pkg/models/geo.go
+@@ -154,11 +154,12 @@ func (gc *GeoCircle) CalculateCovering() (s2.CellUnion, error) {
+ 	}
+ 
+ 	// TODO: Use an S2 Cap as an inscribed polygon does not fully cover the defined circle
+-	return geo.RegionCoverer.Covering(s2.RegularLoop(
++	loop := s2.RegularLoop(
+ 		s2.PointFromLatLng(s2.LatLngFromDegrees(gc.Center.Lat, gc.Center.Lng)),
+ 		geo.DistanceMetersToAngle(float64(gc.RadiusMeter)),
+ 		20,
+-	)), nil
++	)
++	return geo.Covering(loop.Vertices())
+ }
+ 
+ // GeoPolygon models an enclosed area on the earth.
+diff --git a/pkg/scd/models/conversions.go b/pkg/scd/models/conversions.go
+index a857c13..2d08eca 100644
+--- a/pkg/scd/models/conversions.go
++++ b/pkg/scd/models/conversions.go
+@@ -164,11 +164,12 @@ func circleCellsFromSCDRest(c *restapi.Circle) (s2.CellUnion, error) {
+ 		return nil, geo.ErrRadiusMustBeLargerThan0
+ 	}
+ 
+-	return geo.RegionCoverer.Covering(s2.RegularLoop(
++	loop := s2.RegularLoop(
+ 		s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng)),
+ 		geo.DistanceMetersToAngle(float64(c.Radius.Value)),
+ 		20,
+-	)), nil
++	)
++	return geo.Covering(loop.Vertices())
+ }
+ 
+ func polygonCellsFromSCDRest(p *restapi.Polygon) (s2.CellUnion, error) {
