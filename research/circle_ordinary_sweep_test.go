@@ -15,7 +15,7 @@ func TestResearchOrdinaryRadiusMissFrequency(t *testing.T) {
   {"Singapore",1.3521,103.8198},
  }
  radii:=[]float32{1000,3000,5000,10000,15000,20000}
- smaller:=[]float32{50,100,200,500}
+ smaller:=[]float32{20,50,100,200,500}
  type key struct{location string;primary,secondary int}
  misses:=map[key]int{}
  total:=map[key]int{}
@@ -26,7 +26,7 @@ func TestResearchOrdinaryRadiusMissFrequency(t *testing.T) {
    ids:=idsOf(a)
    center:=s2.PointFromLatLng(s2.LatLngFromDegrees(place.lat,place.lng))
    // Fixed 72 bearings; the query circle center remains strictly inside the source.
-   samples:=s2.RegularLoop(center,geo.DistanceMetersToAngle(float64(radius)*0.995),72)
+   samples:=s2.RegularLoop(center,geo.DistanceMetersToAngle(float64(radius)*0.995),1440)
    for _,point:=range samples.Vertices() {
     ll:=s2.LatLngFromPoint(point)
     pointCell:=s2.CellIDFromLatLng(ll).Parent(geo.DefaultMinimumCellLevel)
