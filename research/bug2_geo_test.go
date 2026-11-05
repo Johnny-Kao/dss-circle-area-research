@@ -35,6 +35,8 @@ func TestCircleCoveringIncludesBoundaryCells(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, slices.IsSorted(a))
 	require.True(t, slices.IsSorted(b))
-	require.True(t, s2.CellUnion(a).Intersects(s2.CellUnion(b)),
+	coveringA := s2.CellUnion(a)
+	coveringB := s2.CellUnion(b)
+	require.True(t, coveringA.Intersects(coveringB),
 		"Geographically overlapping circles must have intersecting S2 coverings")
 }
