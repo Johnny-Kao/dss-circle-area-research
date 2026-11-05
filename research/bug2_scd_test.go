@@ -8,7 +8,7 @@ import (
 )
 
 func TestSCDCircleCoveringDoesNotMissOverlap(t *testing.T) {
- mk:=func(lat,lng,r float64)*restapi.Circle{return &restapi.Circle{Center:&restapi.LatLngPoint{Lat:lat,Lng:lng},Radius:&restapi.Radius{Value:r}}}
+ mk:=func(lat,lng,r float64)*restapi.Circle{return &restapi.Circle{Center:&restapi.LatLngPoint{Lat:restapi.Latitude(lat),Lng:restapi.Longitude(lng)},Radius:&restapi.Radius{Value:float32(r)}}}
  a,err:=circleCellsFromSCDRest(mk(37.427636,-122.170502,15000));require.NoError(t,err)
  b,err:=circleCellsFromSCDRest(mk(37.450505047,-122.003926497,20));require.NoError(t,err)
  set:=make(map[s2.CellID]bool,len(a))
