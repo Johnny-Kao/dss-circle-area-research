@@ -48,7 +48,7 @@ func TestResearchOrdinaryRadiusMissFrequency(t *testing.T) {
    cases+=total[k];failures+=misses[k]
    if misses[k]>0 {withMiss++}
   }}
-  t.Logf("RESULT smallRadius=%dm: missed=%d/%d center-within-primary cases; scenarios with >=1 miss=%d/%d (5 locations x 6 primary radii)",r,failures,cases,withMiss,len(places)*len(radii))
+  t.Logf("RESULT smallRadius=%.0fm: missed=%d/%d center-within-primary cases; scenarios with >=1 miss=%d/%d (5 locations x 6 primary radii)",r,failures,cases,withMiss,len(places)*len(radii))
  }
  if len(misses)==0{t.Fatal("No misses found in scanned scenarios")}
 }
