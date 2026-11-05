@@ -1,33 +1,29 @@
 diff --git a/pkg/models/geo.go b/pkg/models/geo.go
 --- a/pkg/models/geo.go
 +++ b/pkg/models/geo.go
-@@ -153,12 +153,11 @@ func (gc *GeoCircle) CalculateCovering() (s2.CellUnion, error) {
- 		return nil, geo.ErrRadiusMustBeLargerThan0
- 	}
- 
+@@ -157,6 +157,5 @@
 -	// TODO: Use an S2 Cap as an inscribed polygon does not fully cover the defined circle
 -	return geo.RegionCoverer.Covering(s2.RegularLoop(
+-		s2.PointFromLatLng(s2.LatLngFromDegrees(gc.Center.Lat, gc.Center.Lng)),
+-		geo.DistanceMetersToAngle(float64(gc.RadiusMeter)),
+-		20,
+-	)), nil
 +	// Cover the whole circle, including its boundary.
 +	return geo.RegionCoverer.Covering(s2.CapFromCenterAngle(
- 		s2.PointFromLatLng(s2.LatLngFromDegrees(gc.Center.Lat, gc.Center.Lng)),
- 		geo.DistanceMetersToAngle(float64(gc.RadiusMeter)),
--		20,
- 	)), nil
- }
- 
++		s2.PointFromLatLng(s2.LatLngFromDegrees(gc.Center.Lat, gc.Center.Lng)),
++		geo.DistanceMetersToAngle(float64(gc.RadiusMeter)),
++	)), nil
 diff --git a/pkg/scd/models/conversions.go b/pkg/scd/models/conversions.go
 --- a/pkg/scd/models/conversions.go
 +++ b/pkg/scd/models/conversions.go
-@@ -161,12 +161,11 @@ func circleCellsFromSCDRest(c *restapi.Circle) (s2.CellUnion, error) {
- 		return nil, geo.ErrRadiusMustBeLargerThan0
- 	}
- 
+@@ -164,6 +164,6 @@
 -	return geo.RegionCoverer.Covering(s2.RegularLoop(
+-		s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng)),
+-		geo.DistanceMetersToAngle(float64(c.Radius.Value)),
+-		20,
+-	)), nil
 +	// Cover the whole circle, including its boundary.
 +	return geo.RegionCoverer.Covering(s2.CapFromCenterAngle(
- 		s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng)),
- 		geo.DistanceMetersToAngle(float64(c.Radius.Value)),
--		20,
- 	)), nil
- }
- 
++		s2.PointFromLatLng(s2.LatLngFromDegrees(lat, lng)),
++		geo.DistanceMetersToAngle(float64(c.Radius.Value)),
++	)), nil
