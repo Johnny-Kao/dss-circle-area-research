@@ -30,7 +30,7 @@ jobs:
           cp research/research/bug2_geo_test.go dss/pkg/models/bug2_geo_test.go
           cp research/research/bug2_scd_test.go dss/pkg/scd/models/bug2_scd_test.go
           cp research/research/bug2_memstore_test.go dss/pkg/scd/store/memstore/bug2_memstore_test.go
-          git -C dss apply --check ../research/patches/bug2-cap.patch
+          git -C dss apply --unidiff-zero --check ../research/patches/bug2-cap.patch
       - name: Red — prove old behavior fails for overlapping circles
         shell: bash
         run: |
@@ -45,7 +45,7 @@ jobs:
           grep -q 'TestCircleOverlappingIntentIsDiscoverable' red.log
           if grep -E 'build failed|setup failed|no required module' red.log; then exit 1; fi
       - name: Apply production fix
-        run: git -C dss apply ../research/patches/bug2-cap.patch
+        run: git -C dss apply --unidiff-zero ../research/patches/bug2-cap.patch
       - name: Green — regression and package suites
         working-directory: dss
         run: go test -count=1 ./pkg/models ./pkg/scd/models ./pkg/scd/store/memstore ./pkg/rid/models/api/v1 ./pkg/rid/models/api/v2
