@@ -1,0 +1,32 @@
+name: Research circle exact cap control
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/circle_boundary_cap_test.go'
+      - '.github/workflows/circle-cap-control.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: e97e15eccbe87d114cf85892db6f675e05b93311
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Verify exact spherical caps recover missed intersection
+        run: |
+          cp research/research/circle_boundary_research_test.go dss/pkg/models/circle_boundary_research_test.go
+          cp research/research/circle_boundary_cap_test.go dss/pkg/models/circle_boundary_cap_test.go
+          cd dss
+          go test -v -count=1 -run '^TestResearch' ./pkg/models
