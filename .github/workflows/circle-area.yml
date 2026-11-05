@@ -1,0 +1,71 @@
+name: DSS circle area-limit red-green
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/circle-area.yml'
+      - 'patches/**'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout independent research repo
+        uses: actions/checkout@v4
+        with:
+          path: research
+      - name: Checkout upstream DSS (not a fork)
+        uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          path: dss
+      - name: Record upstream commit
+        run: git -C dss rev-parse HEAD
+      - name: Validate patches against current upstream
+        run: |
+          cd dss
+          git apply --check ../research/patches/tests-only.patch
+          git apply --check ../research/patches/production.patch
+      - name: Install Go required by upstream
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache: true
+          cache-dependency-path: dss/go.sum
+      - name: Apply regressions only
+        run: git -C dss apply ../research/patches/tests-only.patch
+      - name: RED — confirm original oversized-circle behavior fails both tests
+        working-directory: dss
+        shell: bash
+        run: |
+          set +e
+          go test -count=1 -run 'TestGeoCircleCoveringFailsForAreaTooLarge|TestCellsVolume4DFromSCDRest/CircleAreaTooLarge' ./pkg/models ./pkg/scd/models 2>&1 | tee ../red.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then echo "Unexpected GREEN on unpatched upstream"; exit 1; fi
+          if ! grep -q 'TestGeoCircleCoveringFailsForAreaTooLarge' ../red.log || ! grep -q 'CircleAreaTooLarge' ../red.log; then
+            echo "RED not proven: failure may be build or dependency related"; exit 1
+          fi
+          if grep -Eq 'FAIL[[:space:]]+.*\[build failed\]|setup failed|no required module provides package' ../red.log; then
+            echo "RED not proven: compilation/dependency issue"; exit 1
+          fi
+          echo "Expected RED confirmed"
+      - name: Apply production fix
+        run: git -C dss apply ../research/patches/production.patch
+      - name: GREEN — targeted unit tests
+        working-directory: dss
+        run: go test -count=1 ./pkg/models ./pkg/scd/models ./pkg/rid/models/api/v2
+      - name: Check Go formatting
+        working-directory: dss
+        run: |
+          test -z "$(gofmt -l pkg/models/geo.go pkg/models/geo_test.go pkg/scd/models/conversions.go pkg/scd/models/conversions_test.go)"
+      - name: Upload RED evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-phase-log
+          path: red.log
+          if-no-files-found: ignore
