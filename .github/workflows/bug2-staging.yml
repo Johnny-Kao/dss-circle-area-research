@@ -54,6 +54,17 @@ jobs:
         working-directory: dss
         run: |
           test -z "$(gofmt -l pkg/models/geo.go pkg/scd/models/conversions.go pkg/models/bug2_geo_test.go pkg/scd/models/bug2_scd_test.go pkg/scd/store/memstore/bug2_memstore_test.go)"
+      - name: Upload validated upstream files
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validated-circle-cap-files
+          path: |
+            dss/pkg/models/geo.go
+            dss/pkg/scd/models/conversions.go
+            dss/pkg/models/bug2_geo_test.go
+            dss/pkg/scd/models/bug2_scd_test.go
+            dss/pkg/scd/store/memstore/bug2_memstore_test.go
       - name: Upload original failure evidence
         if: always()
         uses: actions/upload-artifact@v4
