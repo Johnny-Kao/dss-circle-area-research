@@ -1,0 +1,31 @@
+name: Operational Intent missed-overlap backend regression
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/operational_intent_false_negative_test.go'
+      - '.github/workflows/operational-intent-overlap.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: e97e15eccbe87d114cf85892db6f675e05b93311
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Reproduce in actual SCD in-memory backend
+        run: |
+          cp research/research/operational_intent_false_negative_test.go dss/pkg/scd/store/memstore/operational_intent_false_negative_test.go
+          cd dss
+          go test -v -count=1 -run '^TestResearchOperationalIntentFalseNegativeAndCapRecovery$' ./pkg/scd/store/memstore
