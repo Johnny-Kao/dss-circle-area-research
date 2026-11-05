@@ -1,0 +1,62 @@
+name: Bug 2 S2 Cap staging
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'patches/bug2-cap.patch'
+      - 'research/bug2_*'
+      - '.github/workflows/bug2-staging.yml'
+permissions:
+  contents: read
+jobs:
+  red-green:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Stage regression tests
+        run: |
+          cp research/research/bug2_geo_test.go dss/pkg/models/bug2_geo_test.go
+          cp research/research/bug2_scd_test.go dss/pkg/scd/models/bug2_scd_test.go
+          cp research/research/bug2_memstore_test.go dss/pkg/scd/store/memstore/bug2_memstore_test.go
+          git -C dss apply --check ../research/patches/bug2-cap.patch
+      - name: Red — prove old behavior fails for overlapping circles
+        shell: bash
+        run: |
+          set +e
+          (cd dss && go test -count=1 -run 'TestCircleCoveringIncludesBoundaryCells|TestSCDCircleCoveringDoesNotMissOverlap|TestCircleOverlappingIntentIsDiscoverable' ./pkg/models ./pkg/scd/models ./pkg/scd/store/memstore) > red.log 2>&1
+          status=$?
+          set -e
+          tee /dev/stderr < red.log
+          test "$status" -ne 0
+          grep -q 'TestCircleCoveringIncludesBoundaryCells' red.log
+          grep -q 'TestSCDCircleCoveringDoesNotMissOverlap' red.log
+          grep -q 'TestCircleOverlappingIntentIsDiscoverable' red.log
+          if grep -E 'build failed|setup failed|no required module' red.log; then exit 1; fi
+      - name: Apply production fix
+        run: git -C dss apply ../research/patches/bug2-cap.patch
+      - name: Green — regression and package suites
+        working-directory: dss
+        run: go test -count=1 ./pkg/models ./pkg/scd/models ./pkg/scd/store/memstore ./pkg/rid/models/api/v1 ./pkg/rid/models/api/v2
+      - name: Go formatting
+        working-directory: dss
+        run: |
+          test -z "$(gofmt -l pkg/models/geo.go pkg/scd/models/conversions.go pkg/models/bug2_geo_test.go pkg/scd/models/bug2_scd_test.go pkg/scd/store/memstore/bug2_memstore_test.go)"
+      - name: Upload original failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red
+          path: red.log
+          if-no-files-found: ignore
