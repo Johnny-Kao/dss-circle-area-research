@@ -1,0 +1,118 @@
+name: PR 1914 Monitoring API mutation controls
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/monitoring/oir_circle_overlap.*'
+      - '.github/workflows/pr1914-monitoring-mutations.yml'
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/dss
+          ref: staging/pr-1914-review-final
+          path: fixed-dss
+      - name: Build fixed DSS for HTTP green test
+        run: docker build --tag local/dss:pr1914-fixed fixed-dss
+      - name: Stage isolated OIR circle scenario and targeted suite
+        run: |
+          cp research/research/monitoring/oir_circle_overlap.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
+          cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py")
+          p.write_text(p.read_text() + "from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n")
+          ids=Path("monitoring/monitoring/monitorlib/ids.py")
+          ids.write_text(ids.read_text().replace("# Next code: 406","# Next code: 408",1))
+          p=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_circle_overlap.yaml")
+          p.write_text("""name: DSS circular overlap regression
+          resources:
+            dss: resources.astm.f3548.v21.DSSInstanceResource
+            id_generator: resources.interuss.IDGeneratorResource
+          actions:
+            - test_scenario:
+                scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap
+                resources:
+                  dss: dss
+                  id_generator: id_generator
+          """)
+          config=Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          original=config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1)
+          assert "  validation:\n" in original
+          original=original.split("  validation:\n",1)[0]
+          original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
+          config.write_text(original)
+          PY
+      - name: Run actual local DSS API regression
+        working-directory: monitoring
+        env:
+          CONFIG_NAME: configurations.dev.f3548_self_contained
+          CI: 'true'
+          DSS_IMAGE: local/dss:pr1914-fixed
+        run: make -C monitoring/uss_qualifier test
+      - name: Verify response mutants cannot produce false passes
+        working-directory: monitoring
+        env:
+          CONFIG_NAME: configurations.dev.f3548_self_contained
+          CI: 'true'
+          DSS_IMAGE: local/dss:pr1914-fixed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py /tmp/original-scenario.py
+          for mutant in empty all; do
+            cp /tmp/original-scenario.py monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+            MUTANT="$mutant" python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py")
+          s=p.read_text()
+          needle="                    self.record_query(response)\n                    ids ="
+          assert s.count(needle)==1
+          replacement="                    self.record_query(response)\n"
+          replacement+=("                    found = []  # response mutant: always empty\n" if os.environ["MUTANT"]=="empty" else "                    found = [self._created_oir]  # response mutant: include every time\n")
+          replacement+="                    ids ="
+          p.write_text(s.replace(needle,replacement))
+          PY
+            set +e
+            make -C monitoring/uss_qualifier test > "/tmp/mutation-$mutant.log" 2>&1
+            status=$?
+            set -e
+            echo "Mutation $mutant: exit=$status"
+            grep -E 'Overlapping OIR was missing|OIR was returned for a disjoint 4D query|Execution error in scenario' "/tmp/mutation-$mutant.log" | tail -15 || true
+            test "$status" -ne 0 || { echo "FALSE PASS: mutant $mutant survived"; exit 1; }
+            if [ "$mutant" = empty ]; then
+              grep -q "Overlapping OIR was missing" "/tmp/mutation-$mutant.log"
+            else
+              grep -q "OIR was returned for a disjoint 4D query" "/tmp/mutation-$mutant.log"
+            fi
+            if grep -q "Execution error in scenario" "/tmp/mutation-$mutant.log"; then
+              echo "Mutation produced a harness execution error rather than a clean assertion"
+              exit 1
+            fi
+          done
+          cp /tmp/original-scenario.py monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+      - name: Save reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kentland-monitoring-api-reports
+          path: |
+            monitoring/monitoring/uss_qualifier/output
+            monitoring/logs
+            monitoring/monitoring/mock_uss/output
+          if-no-files-found: ignore
