@@ -7,8 +7,8 @@ overlaps a larger registered circle close to its boundary. This is an HTTP-level
 regression for the false negative fixed in interuss/dss#1914.
 
 The coordinates are an intentionally fixed, previously verified regression
-fixture. They are near Stanford, California; the 15 km reference circle is
-below the maximum allowed area. Run against a test DSS that accepts this
+fixture. Both circles are within the default Kentland planning-area rectangle; the
+1.1 km reference circle is below the maximum allowed area. Run against a test DSS that accepts this
 geographical area. Both request volumes share time and altitude bounds.
 
 ## Resources
@@ -42,7 +42,7 @@ A test-owned OIR must be removable by ID and correct OVN under
 
 ### Create large circular OIR test step
 
-Create an accepted OIR with a 15,000 m circular footprint and matching
+Create an accepted OIR with a 1,100 m circular footprint and matching
 time and altitude bounds.
 
 #### 🛑 Create operational intent reference query succeeds check
@@ -51,7 +51,7 @@ Valid OIR creation must succeed under **[astm.f3548.v21.DSS0005,1](../../../../r
 
 ### Search with small overlapping circle test step
 
-Query with a 20 m circle near the large circle's boundary. The two regions
+Query with a 1 m circle near the large circle's boundary. The two regions
 geographically intersect, so the created OIR must be discoverable.
 
 #### 🛑 Overlapping circle query finds the OIR check
