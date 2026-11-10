@@ -33,7 +33,7 @@ jobs:
       - name: Inject independent regression (no production code modifications)
         run: |
           cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
-          test -z "$(gofmt -l dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go)"
+          gofmt -w dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
       - name: CONTROL — update below cap succeeds
         working-directory: dss
         run: go test -count=1 -v -run '^TestUpdateSubscriptionBelowAreaLimitControl$' ./pkg/rid/operations
