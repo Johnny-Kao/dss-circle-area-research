@@ -31,12 +31,12 @@ Remove an OIR left by a previous run, if it exists.
 #### 🛑 Operational intent references can be queried by ID check
 
 Retrieving an OIR by ID must succeed or return 404 when absent;
-otherwise **astm.f3548.v21.DSS0005,1** is violated.
+otherwise **[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)** is violated.
 
 #### 🛑 Operational intent reference removed check
 
 A test-owned OIR must be removable by ID and correct OVN under
-**astm.f3548.v21.DSS0005,1**.
+**[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)**.
 
 ## Discover an OIR through an overlapping circle test case
 
@@ -47,7 +47,7 @@ time and altitude bounds.
 
 #### 🛑 Create operational intent reference query succeeds check
 
-Valid OIR creation must succeed under **astm.f3548.v21.DSS0005,1**.
+Valid OIR creation must succeed under **[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)**.
 
 ### Search with small overlapping circle test step
 
@@ -57,7 +57,7 @@ geographically intersect, so the created OIR must be discoverable.
 #### 🛑 Overlapping circle query finds the OIR check
 
 A query that overlaps an OIR's 4D extent must return its reference.
-A missing reference or failed query violates **astm.f3548.v21.DSS0005,2**.
+A missing reference or failed query violates **[astm.f3548.v21.DSS0005,2](../../../../requirements/astm/f3548/v21.md)**.
 
 ### Delete large circular OIR test step
 
@@ -66,7 +66,7 @@ Remove the created OIR after the search.
 #### 🛑 Delete operational intent reference query succeeds check
 
 Deleting a test-owned OIR with the correct OVN must succeed under
-**astm.f3548.v21.DSS0005,1**.
+**[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)**.
 
 ## Cleanup
 
@@ -77,9 +77,9 @@ Remove the known OIR ID on failure or early termination.
 #### ⚠️ Operational intent references can be queried by ID check
 
 The DSS should return the reference or 404 for an absent reference
-under **astm.f3548.v21.DSS0005,1**.
+under **[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)**.
 
 #### ⚠️ Operational intent reference removed check
 
 A test-owned OIR must be removable using the correct OVN under
-**astm.f3548.v21.DSS0005,1**.
+**[astm.f3548.v21.DSS0005,1](../../../../requirements/astm/f3548/v21.md)**.
