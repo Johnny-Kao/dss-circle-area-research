@@ -35,10 +35,10 @@ class OIRCircleOverlap(TestScenario):
 
     # Fixed Kentland fixture: changing coordinates may hide the S2 boundary bug.
     # All circles are inside the default test area; the OIR covers ~3.8 km².
-    _PRIMARY = Circle.from_meters(37.2010000000, -80.5760000000, 1100)
-    _QUERY = Circle.from_meters(37.2001131858, -80.5883072609, 1)
-    _FAR = Circle.from_meters(37.201, -80.546, 1)
-    _INSIDE = Circle.from_meters(37.201, -80.576, 200)
+    _OIR_CIRCLE = Circle.from_meters(37.2010000000, -80.5760000000, 1100)
+    _BOUNDARY_QUERY = Circle.from_meters(37.2001131858, -80.5883072609, 1)
+    _DISTANT_QUERY = Circle.from_meters(37.201, -80.546, 1)
+    _INNER_QUERY = Circle.from_meters(37.201, -80.576, 200)
 
     _dss: DSSInstance
 
@@ -67,7 +67,7 @@ class OIRCircleOverlap(TestScenario):
         params = PutOperationalIntentReferenceParameters(
             extents=[
                 Volume4D.from_values(
-                    t0=start, t1=end, alt0=30, alt1=120, circle=self._PRIMARY
+                    t0=start, t1=end, alt0=30, alt1=120, circle=self._OIR_CIRCLE
                 ).to_f3548v21()
             ],
             key=[],
@@ -85,7 +85,7 @@ class OIRCircleOverlap(TestScenario):
             # A: Catch the original false negative near the circle boundary.
             (
                 "Boundary overlap is discoverable",
-                self._QUERY,
+                self._BOUNDARY_QUERY,
                 start,
                 end,
                 30,
@@ -95,7 +95,7 @@ class OIRCircleOverlap(TestScenario):
             # B: Reject an OIR outside the horizontal search area.
             (
                 "Distant circle does not match",
-                self._FAR,
+                self._DISTANT_QUERY,
                 start,
                 end,
                 30,
@@ -105,7 +105,7 @@ class OIRCircleOverlap(TestScenario):
             # C: Reject a match outside the requested altitude range.
             (
                 "Disjoint altitude does not match",
-                self._QUERY,
+                self._BOUNDARY_QUERY,
                 start,
                 end,
                 250,
@@ -115,7 +115,7 @@ class OIRCircleOverlap(TestScenario):
             # D: Reject an OIR outside the requested time window.
             (
                 "Disjoint time does not match",
-                self._QUERY,
+                self._BOUNDARY_QUERY,
                 end + timedelta(minutes=10),
                 end + timedelta(minutes=40),
                 30,
@@ -125,7 +125,7 @@ class OIRCircleOverlap(TestScenario):
             # E: Keep a normal positive control, away from the boundary.
             (
                 "Ordinary contained circle is discoverable",
-                self._INSIDE,
+                self._INNER_QUERY,
                 start,
                 end,
                 30,
