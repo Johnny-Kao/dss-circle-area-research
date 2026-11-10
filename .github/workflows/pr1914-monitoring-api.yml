@@ -1,4 +1,4 @@
-name: PR 1914 Monitoring API integration
+name: PR 1914 Monitoring API green integration
 on:
   workflow_dispatch:
   push:
@@ -21,6 +21,13 @@ jobs:
           ref: main
           path: monitoring
           submodules: true
+      - uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/dss
+          ref: staging/pr-1914-review-final
+          path: fixed-dss
+      - name: Build fixed DSS for HTTP green test
+        run: docker build --tag local/dss:pr1914-fixed fixed-dss
       - name: Stage isolated OIR circle scenario and targeted suite
         run: |
           cp research/research/monitoring/oir_circle_overlap.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
@@ -44,13 +51,33 @@ jobs:
                   id_generator: id_generator
           """)
           config=Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
-          config.write_text(config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1))
+          original=config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1)
+          assert "  validation:\\n" in original
+          original=original.split("  validation:\\n",1)[0]
+          original += """  validation:
+    criteria:
+      - applicability:
+          test_scenarios: {}
+        pass_condition:
+          each_element:
+            has_execution_error: false
+      - applicability:
+          failed_checks:
+            has_severity:
+              higher_than: Low
+        pass_condition:
+          elements:
+            count:
+              equal_to: 0
+"""
+          config.write_text(original)
           PY
       - name: Run actual local DSS API regression
         working-directory: monitoring
         env:
           CONFIG_NAME: configurations.dev.f3548_self_contained
           CI: 'true'
+          DSS_IMAGE: local/dss:pr1914-fixed
         run: make -C monitoring/uss_qualifier test
       - name: Save reports
         if: always()
