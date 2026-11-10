@@ -3,6 +3,9 @@
 from datetime import UTC, datetime, timedelta
 from math import asin, atan2, cos, degrees, radians, sin
 
+import s2sphere
+from shapely.geometry import Point, Polygon
+
 from uas_standards.astm.f3548.v21.api import (
     OperationalIntentState,
     PutOperationalIntentReferenceParameters,
@@ -35,8 +38,7 @@ class OIRCircleOverlap(TestScenario):
         407, "Circle overlap operational intent reference"
     )
 
-    _RADIUS_M = 1100
-    _EARTH_RADIUS_M = 6371008.8
+    _EARTH_RADIUS_M = 6371010.0
 
     @staticmethod
     def _point_at(lat: float, lng: float, meters: float, bearing: float):
@@ -56,27 +58,83 @@ class OIRCircleOverlap(TestScenario):
 
     def _circles(self):
         bounds = self._planning_area.get_extents()
-        # Keep the original Kentland fixture offset from the area center.
-        lat = (bounds.lat_min + bounds.lat_max) / 2 + 0.00095
-        lng = (bounds.lng_min + bounds.lng_max) / 2 + 0.003
-        # Fail explicitly when a configured area cannot fit the test geometry.
-        north_m = (bounds.lat_max - bounds.lat_min) * 111195 / 2
-        east_m = (bounds.lng_max - bounds.lng_min) * 111195 * cos(radians(lat)) / 2
-        if north_m < 1350 or east_m < 2950:
-            raise ValueError(
-                f"Planning area too small for OIR circle regression: {bounds}"
-            )
-        primary = Circle.from_meters(lat, lng, self._RADIUS_M)
-        far_lat, far_lng = self._point_at(lat, lng, 2500, 90)
-        distant = Circle.from_meters(far_lat, far_lng, 1)
-        inside = Circle.from_meters(lat, lng, 200)
-        # Sweep the gaps between vertices of the old 20-sided approximation.
-        # A single translated point may miss the S2 false-negative regression.
-        boundary = []
-        for bearing in [264.834626, *range(9, 360, 18)]:
-            qlat, qlng = self._point_at(lat, lng, 0.995 * self._RADIUS_M, bearing)
-            boundary.append((bearing, Circle.from_meters(qlat, qlng, 1)))
-        return primary, boundary, distant, inside
+        base_lat = (bounds.lat_min + bounds.lat_max) / 2 + 0.00095
+        base_lng = (bounds.lng_min + bounds.lng_max) / 2 + 0.003
+
+        # Select a real S2 level-13 gap in the old 20-gon approximation.
+        for dlat in (0, 0.002, -0.002, 0.004, -0.004, 0.006, -0.006):
+            for dlng in (0, 0.003, -0.003, 0.006, -0.006, 0.009, -0.009):
+                lat, lng = base_lat + dlat, base_lng + dlng
+                meters_lat = 111195
+                meters_lng = meters_lat * cos(radians(lat))
+                for radius in (900, 1100, 1300):
+                    if min(
+                        (lat - bounds.lat_min) * meters_lat,
+                        (bounds.lat_max - lat) * meters_lat,
+                        (lng - bounds.lng_min) * meters_lng,
+                        (bounds.lng_max - lng) * meters_lng,
+                    ) < radius + 5:
+                        continue
+
+                    to_xy = lambda p: (p[1] * meters_lng, p[0] * meters_lat)
+                    old_polygon = Polygon(
+                        [
+                            to_xy(self._point_at(lat, lng, radius, bearing))
+                            for bearing in range(0, 360, 18)
+                        ]
+                    )
+                    cells = {}
+                    for fraction in (0.995, 0.998, 0.999):
+                        for bearing in range(0, 360, 2):
+                            qlat, qlng = self._point_at(
+                                lat, lng, radius * fraction, bearing
+                            )
+                            cell_id = s2sphere.CellId.from_lat_lng(
+                                s2sphere.LatLng.from_degrees(qlat, qlng)
+                            ).parent(13)
+                            if cell_id.id() not in cells:
+                                cell = s2sphere.Cell(cell_id)
+                                vertices = [
+                                    s2sphere.LatLng.from_point(cell.get_vertex(i))
+                                    for i in range(4)
+                                ]
+                                cells[cell_id.id()] = Polygon(
+                                    [
+                                        to_xy((v.lat().degrees, v.lng().degrees))
+                                        for v in vertices
+                                    ]
+                                )
+                            cell_polygon = cells[cell_id.id()]
+                            if cell_polygon.intersects(old_polygon):
+                                continue
+                            if cell_polygon.boundary.distance(
+                                Point(to_xy((qlat, qlng)))
+                            ) <= 3:
+                                continue
+
+                            # Keep the negative control well away from S2 false positives.
+                            distant = None
+                            for far_bearing in (90, 270, 0, 180):
+                                flat, flng = self._point_at(
+                                    lat, lng, 2500, far_bearing
+                                )
+                                if (
+                                    bounds.lat_min < flat < bounds.lat_max
+                                    and bounds.lng_min < flng < bounds.lng_max
+                                ):
+                                    distant = Circle.from_meters(flat, flng, 1)
+                                    break
+                            if distant is None:
+                                continue
+                            return (
+                                Circle.from_meters(lat, lng, radius),
+                                [(bearing, Circle.from_meters(qlat, qlng, 1))],
+                                distant,
+                                Circle.from_meters(lat, lng, 200),
+                            )
+        raise ValueError(
+            f"No verified S2 circle regression fixture in planning area {bounds}"
+        )
 
     _dss: DSSInstance
 
@@ -125,7 +183,7 @@ class OIRCircleOverlap(TestScenario):
         )
         self.end_test_step()
 
-        # A: Catch the original S2 boundary false negative from any direction.
+        # A: Catch the original S2 boundary false negative at a chosen level-13 gap.
         self.begin_test_step("Boundary overlap is discoverable")
         for bearing, circle in boundary:
             self._search(
