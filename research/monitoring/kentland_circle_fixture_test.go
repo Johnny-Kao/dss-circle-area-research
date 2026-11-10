@@ -1,56 +1,48 @@
 package models
 
 import (
-    "testing"
-
-    "github.com/golang/geo/s2"
-    "github.com/interuss/dss/pkg/geo"
+ "testing"
+ "github.com/golang/geo/s2"
+ "github.com/interuss/dss/pkg/geo"
 )
 
-// Independent test-fixture discovery for the existing monitoring Kentland area.
-// This runs against the old DSS master implementation and checks the S2 Cap fix.
 func TestResearchKentlandCircleOverlapFixture(t *testing.T) {
-    centers := []LatLngPoint{
-        {Lat: 37.2000, Lng: -80.5800},
-        {Lat: 37.2000, Lng: -80.5900},
-        {Lat: 37.2000, Lng: -80.5700},
-        {Lat: 37.1980, Lng: -80.5800},
-        {Lat: 37.2020, Lng: -80.5800},
-        {Lat: 37.2050, Lng: -80.5900},
-        {Lat: 37.1950, Lng: -80.5600},
-        {Lat: 37.2100, Lng: -80.5600},
-        {Lat: 37.1900, Lng: -80.6000},
-        {Lat: 37.2050, Lng: -80.6000},
-        {Lat: 37.2050, Lng: -80.5500},
-        {Lat: 37.1950, Lng: -80.6000},
+ // Remain inside the existing Kentland test planning-area rectangle.
+ inside := func(lat,lng float64) bool {
+   return lat > 37.1853 && lat < 37.2148 && lng > -80.6140 && lng < -80.5440
+ }
+ centers := []LatLngPoint{}
+ for _,lat := range []float64{37.1990,37.2000,37.2010,37.2020} {
+   for _,lng := range []float64{-80.5920,-80.5880,-80.5840,-80.5800,-80.5760,-80.5720,-80.5680} {
+     centers=append(centers,LatLngPoint{Lat:lat,Lng:lng})
+   }
+ }
+ for _,center:= range centers {
+  for _,radius:= range []float32{700,900,1100,1300,1450} {
+   // A radius up to 1.45 km may fit within the 3.3 km-high test area.
+   p:=s2.PointFromLatLng(s2.LatLngFromDegrees(center.Lat,center.Lng))
+   oldA,err:=(&GeoCircle{Center:center, RadiusMeter:radius}).CalculateCovering()
+   if err!=nil {t.Fatal(err)}
+   newA:=geo.RegionCoverer.Covering(s2.CapFromCenterAngle(p,geo.DistanceMetersToAngle(float64(radius))))
+   for _,scale:=range []float64{0.995,0.99,0.98} {
+    positions:=s2.RegularLoop(p,geo.DistanceMetersToAngle(float64(radius)*scale),1440)
+    for _,position:=range positions.Vertices() {
+     ll:=s2.LatLngFromPoint(position)
+     if !inside(ll.Lat.Degrees(),ll.Lng.Degrees()) {continue}
+     for _,smallRadius:=range []float32{1,3,5,10,20} {
+      small:=GeoCircle{Center:LatLngPoint{Lat:ll.Lat.Degrees(),Lng:ll.Lng.Degrees()},RadiusMeter:smallRadius}
+      oldB,err:=small.CalculateCovering()
+      if err!=nil {t.Fatal(err)}
+      if oldA.Intersects(oldB) {continue}
+      newB:=geo.RegionCoverer.Covering(s2.CapFromCenterAngle(position,geo.DistanceMetersToAngle(float64(smallRadius))))
+      if !newA.Intersects(newB) {continue}
+      t.Logf("KENTLAND_CONTAINED primary_lat=%.10f primary_lng=%.10f radius=%.0f query_lat=%.10f query_lng=%.10f query_radius=%.0f old=false cap=true",
+         center.Lat,center.Lng,radius,ll.Lat.Degrees(),ll.Lng.Degrees(),smallRadius)
+      return
+     }
     }
-    radii := []float32{1000, 1500, 2000, 3000, 5000, 10000, 15000, 20000}
-
-    for _, center := range centers {
-        for _, radius := range radii {
-            primary := GeoCircle{Center: center, RadiusMeter: radius}
-            oldA, err := primary.CalculateCovering()
-            if err != nil { t.Fatal(err) }
-            primaryPoint := s2.PointFromLatLng(s2.LatLngFromDegrees(center.Lat, center.Lng))
-            positions := s2.RegularLoop(primaryPoint, geo.DistanceMetersToAngle(float64(radius)*0.995), 1440)
-            newA := geo.RegionCoverer.Covering(s2.CapFromCenterAngle(primaryPoint, geo.DistanceMetersToAngle(float64(radius))))
-            for _, position := range positions.Vertices() {
-                ll := s2.LatLngFromPoint(position)
-                query := GeoCircle{
-                    Center: LatLngPoint{Lat: ll.Lat.Degrees(), Lng: ll.Lng.Degrees()},
-                    RadiusMeter: 20,
-                }
-                oldB, err := query.CalculateCovering()
-                if err != nil { t.Fatal(err) }
-                if oldA.Intersects(oldB) { continue }
-                queryPoint := s2.PointFromLatLng(ll)
-                newB := geo.RegionCoverer.Covering(s2.CapFromCenterAngle(queryPoint, geo.DistanceMetersToAngle(20)))
-                if !newA.Intersects(newB) { continue }
-                t.Logf("KENTLAND_FIXTURE primary_lat=%.10f primary_lng=%.10f radius=%.0f query_lat=%.10f query_lng=%.10f query_radius=20 old=false cap=true",
-                    center.Lat, center.Lng, radius, query.Center.Lat, query.Center.Lng)
-                return
-            }
-        }
-    }
-    t.Fatal("No reproducible Kentland false negative found in sweep")
+   }
+  }
+ }
+ t.Fatal("No contained fixture in current sweep")
 }
