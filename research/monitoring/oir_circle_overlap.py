@@ -125,5 +125,5 @@ class OIRCircleOverlap(TestScenario):
 
     def cleanup(self):
         self.begin_cleanup()
-        self._cleanup_known_oir("Clean up test OIR")
+        test_step_fragments.cleanup_op_intent(self, self._dss, self._oir_id)
         self.end_cleanup()
