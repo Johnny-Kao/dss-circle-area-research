@@ -30,7 +30,7 @@ class OIRCircleOverlap(TestScenario):
     """Check that a small circle overlapping the edge of a larger OIR is searchable."""
 
     OIR_TYPE = register_resource_type(
-        406, "Circle overlap operational intent reference"
+        407, "Circle overlap operational intent reference"
     )
 
     # Known red/green fixture from interuss/dss#1914.
