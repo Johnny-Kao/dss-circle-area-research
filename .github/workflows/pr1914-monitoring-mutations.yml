@@ -87,8 +87,8 @@ jobs:
           needle="                    self.record_query(response)\n                    ids ="
           assert s.count(needle)==1
           replacement="                    self.record_query(response)\n"
-          replacement+=("                    found = []  # response mutant: always empty\n" if os.environ["MUTANT"]=="empty" else "                    found = [self._created_oir]  # response mutant: include every time\n")
-          replacement+="                    ids ="
+          replacement+=("                found = []  # response mutant: always empty\n" if os.environ["MUTANT"]=="empty" else "                found = [self._created_oir]  # response mutant: include every time\n")
+          replacement+="                ids ="
           p.write_text(s.replace(needle,replacement))
           PY
             set +e
