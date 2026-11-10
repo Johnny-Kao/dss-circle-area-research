@@ -52,8 +52,9 @@ class OIRCircleOverlap(TestScenario):
 
     def _circles(self):
         bounds = self._planning_area.get_extents()
-        lat = (bounds.lat_min + bounds.lat_max) / 2
-        lng = (bounds.lng_min + bounds.lng_max) / 2
+        # Keep the original Kentland fixture offset from the area center.
+        lat = (bounds.lat_min + bounds.lat_max) / 2 + 0.00095
+        lng = (bounds.lng_min + bounds.lng_max) / 2 + 0.003
         # Fail explicitly when a configured area cannot fit the test geometry.
         north_m = (bounds.lat_max - bounds.lat_min) * 111195 / 2
         east_m = (bounds.lng_max - bounds.lng_min) * 111195 * cos(radians(lat)) / 2
@@ -66,7 +67,7 @@ class OIRCircleOverlap(TestScenario):
         # Sweep the gaps between vertices of the old 20-sided approximation.
         # A single translated point may miss the S2 false-negative regression.
         boundary = []
-        for bearing in range(9, 360, 18):
+        for bearing in [264.834626, *range(9, 360, 18)]:
             qlat, qlng = self._point_at(lat, lng, 0.995 * self._RADIUS_M, bearing)
             boundary.append((bearing, Circle.from_meters(qlat, qlng, 1)))
         return primary, boundary, distant, inside
