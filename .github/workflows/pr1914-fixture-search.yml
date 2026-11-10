@@ -1,0 +1,30 @@
+name: PR 1914 S2 portable fixture research
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/monitoring/find_s2_fixture.py'
+      - '.github/workflows/pr1914-fixture-search.yml'
+permissions:
+  contents: read
+jobs:
+  find:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - name: Install monitoring dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Find S2 level-13 polygon gap in all three planning areas
+        working-directory: monitoring
+        run: uv run --no-sync python ../research/research/monitoring/find_s2_fixture.py
