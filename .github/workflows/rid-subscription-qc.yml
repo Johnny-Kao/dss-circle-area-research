@@ -1,0 +1,150 @@
+name: RID subscription cap SQL and upstream QC research
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/rid-subscription-update-limit
+    paths:
+      - 'research/rid_subscription_*.go'
+      - 'research/apply_rid_subscription_update_fix.py'
+      - '.github/workflows/rid-subscription-qc.yml'
+permissions:
+  contents: read
+jobs:
+  upstream-qc:
+    name: RED GREEN + upstream Go QC
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          submodules: recursive
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Record provenance and inject tests
+        run: |
+          git -C dss rev-parse HEAD
+          cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
+          cp research/research/rid_subscription_move_limit_test.go dss/pkg/rid/operations/rid_subscription_move_limit_research_test.go
+          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          git -C dss diff --check
+      - name: RED - prove the update at limit fails only at the expected assertion
+        working-directory: dss
+        shell: bash
+        run: |
+          go test -count=1 -run '^TestResearchSubscription(MoveIntoFullCell|ExpandFromFullCellIntoOtherFullCell)$|^TestUpdateSubscriptionBelowAreaLimitControl$' ./pkg/rid/operations
+          set +e
+          go test -count=1 -v -run '^TestUpdateSubscriptionAtAreaLimit$' ./pkg/rid/operations > ../unit-red.log 2>&1
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -q '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../unit-red.log || grep -q -- '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../unit-red.log
+          grep -q 'updating one of 10 existing subscriptions should not be rejected as an 11th' ../unit-red.log
+      - name: Apply research-only fix
+        working-directory: dss
+        run: |
+          python3 ../research/research/apply_rid_subscription_update_fix.py
+          gofmt -w pkg/rid/operations/subscription.go
+          git diff --check
+      - name: GREEN - focused tests
+        working-directory: dss
+        run: go test -count=1 -v ./pkg/rid/operations
+      - name: Upstream QC - complete Go unit test target
+        working-directory: dss
+        run: make test-go-units
+      - name: Upstream QC - Go linter
+        working-directory: dss
+        run: make go-lint
+      - name: Record patch and RED evidence
+        if: always()
+        run: |
+          git -C dss diff -- pkg/rid/operations/subscription.go > research-fix.diff
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rid-unit-qc-evidence
+          path: |
+            unit-red.log
+            research-fix.diff
+
+  cockroach-sql:
+    name: SQL RED GREEN + upstream CockroachDB QC
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          submodules: recursive
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Inject tests
+        run: |
+          git -C dss rev-parse HEAD
+          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
+          cp research/research/rid_subscription_move_limit_test.go dss/pkg/rid/operations/rid_subscription_move_limit_research_test.go
+          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+      - name: Start CockroachDB and migrate using upstream commands
+        working-directory: dss
+        run: |
+          docker run -d --name dss-crdb-for-testing -p 26257:26257 -p 8080:8080 cockroachdb/cockroach:v24.1.3 start-single-node --insecure
+          for i in $(seq 1 60); do
+            if docker logs dss-crdb-for-testing 2>&1 | grep -q 'nodeID'; then break; fi
+            sleep 2
+          done
+          go run ./cmds/db-manager/main.go migrate --schemas_dir ./build/db_schemas/rid --db_version latest --datastore_host localhost
+          go run ./cmds/db-manager/main.go migrate --schemas_dir ./build/db_schemas/scd --db_version latest --datastore_host localhost
+          go run ./cmds/db-manager/main.go migrate --schemas_dir ./build/db_schemas/aux_ --db_version latest --datastore_host localhost
+      - name: SQL RED - verify actual transaction fails at full cap
+        working-directory: dss
+        shell: bash
+        run: |
+          set +e
+          go test -count=1 -v ./pkg/rid/store/sqlstore -run '^TestResearchSQLSubscriptionUpdateAtCap$' --datastore_host localhost --datastore_port 26257 --datastore_ssl_mode disable --datastore_user root > ../sql-red.log 2>&1
+          code=$?
+          set -e
+          test "$code" -ne 0
+          grep -q -- '--- FAIL: TestResearchSQLSubscriptionUpdateAtCap' ../sql-red.log
+          grep -q 'same subscription URL update must not count as an eleventh' ../sql-red.log
+      - name: GREEN - apply fix and rerun SQL invariants
+        working-directory: dss
+        run: |
+          python3 ../research/research/apply_rid_subscription_update_fix.py
+          gofmt -w pkg/rid/operations/subscription.go
+          go test -count=1 -v ./pkg/rid/store/sqlstore -run '^TestResearchSQL' --datastore_host localhost --datastore_port 26257 --datastore_ssl_mode disable --datastore_user root
+      - name: Stop first CRDB before upstream's own QC target
+        if: always()
+        run: |
+          docker stop dss-crdb-for-testing || true
+          docker rm dss-crdb-for-testing || true
+      - name: Upstream QC - full CockroachDB test target
+        working-directory: dss
+        run: make test-go-units-crdb
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rid-sql-qc-evidence
+          path: sql-red.log
+      - name: Ensure cleanup
+        if: always()
+        run: |
+          docker stop dss-crdb-for-testing || true
+          docker rm dss-crdb-for-testing || true
