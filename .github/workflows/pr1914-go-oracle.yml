@@ -1,0 +1,32 @@
+name: PR 1914 portable S2 candidate Go oracle
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/monitoring/shifted_s2_gap_test.go'
+      - '.github/workflows/pr1914-go-oracle.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Verify old 20-gon misses each found S2 gap
+        run: |
+          cp research/research/monitoring/shifted_s2_gap_test.go dss/pkg/models/shifted_s2_gap_test.go
+          gofmt -w dss/pkg/models/shifted_s2_gap_test.go
+          cd dss
+          go test -v -count=1 -timeout=10m -run '^TestResearchShiftedPlanningAreaS2Gaps$' ./pkg/models
