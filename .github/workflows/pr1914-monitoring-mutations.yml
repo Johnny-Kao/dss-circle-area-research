@@ -84,9 +84,9 @@ jobs:
           import os
           p=Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py")
           s=p.read_text()
-          needle="                    self.record_query(response)\n                    ids ="
+          needle="                self.record_query(response)\n                ids ="
           assert s.count(needle)==1
-          replacement="                    self.record_query(response)\n"
+          replacement="                self.record_query(response)\n"
           replacement+=("                found = []  # response mutant: always empty\n" if os.environ["MUTANT"]=="empty" else "                found = [self._created_oir]  # response mutant: include every time\n")
           replacement+="                ids ="
           p.write_text(s.replace(needle,replacement))
