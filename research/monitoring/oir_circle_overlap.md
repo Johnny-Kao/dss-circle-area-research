@@ -6,13 +6,11 @@ Tests the DSS operational intent reference search API when a small query circle
 overlaps a larger registered circle close to its boundary. This is an HTTP-level
 regression for the false negative fixed in interuss/dss#1914.
 
-The fixed coordinates reproduce interuss/dss#1914 in the default Kentland
-planning area. All query circles fit within that area; the 1.1 km OIR circle
-is below the maximum allowed area. Run only against a test DSS that supports
-Kentland. Moving the fixture may remove the S2 boundary regression.
-
-The five queries vary horizontal position, altitude or time. Positive and
-negative controls catch searches that always return nothing or everything.
+The scenario derives its circles from the configured PlanningAreaResource. It
+requires a test area large enough to contain the 1.1 km OIR and distant control.
+Twenty small searches, near the OIR boundary at different bearings, protect
+against the S2 false negative from interuss/dss#1914. The other four queries
+check horizontal separation, altitude, time, and an ordinary overlap.
 
 ## Resources
 
@@ -24,6 +22,11 @@ create, search, and delete operational intent references.
 ### id_generator
 
 An `IDGeneratorResource` supplying a dedicated test OIR ID.
+
+### planning_area
+
+A `PlanningAreaResource` used to place the test circles inside the current
+DSS test environment.
 
 ## Setup test case
 
@@ -54,7 +57,8 @@ Valid OIR creation must succeed under **[astm.f3548.v21.DSS0005,1](../../../../r
 
 ### Boundary overlap is discoverable test step
 
-A 1 m circle near the outer boundary of the registered 1.1 km circle intersects the OIR in space, altitude and time; it must be found.
+Twenty 1 m circles just inside the boundary of the 1.1 km registered circle
+must each find the OIR. Each uses the same valid time and altitude interval.
 
 #### 🛑 Boundary overlap is discoverable check
 
