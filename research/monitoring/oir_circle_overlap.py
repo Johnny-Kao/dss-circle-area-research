@@ -1,6 +1,6 @@
 """API regression for circular OIR overlap at the S2 covering boundary."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from uas_standards.astm.f3548.v21.api import (
     OperationalIntentState,
@@ -59,7 +59,7 @@ class OIRCircleOverlap(TestScenario):
         self.end_test_case()
 
         self.begin_test_case("Discover an OIR through an overlapping circle")
-        start = datetime.now(timezone.utc) + timedelta(minutes=5)
+        start = datetime.now(UTC) + timedelta(minutes=5)
         end = start + timedelta(minutes=60)
         self.begin_test_step("Create large circular OIR")
         params = PutOperationalIntentReferenceParameters(
