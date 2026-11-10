@@ -19,7 +19,9 @@ from monitoring.uss_qualifier.resources.astm.f3548.v21.dss import (
 )
 from monitoring.uss_qualifier.resources.interuss.id_generator import IDGeneratorResource
 from monitoring.uss_qualifier.scenarios.astm.utm.dss import test_step_fragments
-from monitoring.uss_qualifier.scenarios.astm.utm.dss.fragments.oir import crud as oir_fragments
+from monitoring.uss_qualifier.scenarios.astm.utm.dss.fragments.oir import (
+    crud as oir_fragments,
+)
 from monitoring.uss_qualifier.scenarios.scenario import TestScenario
 from monitoring.uss_qualifier.suites.suite import ExecutionContext
 
@@ -27,7 +29,9 @@ from monitoring.uss_qualifier.suites.suite import ExecutionContext
 class OIRCircleOverlap(TestScenario):
     """Check that a small circle overlapping the edge of a larger OIR is searchable."""
 
-    OIR_TYPE = register_resource_type(406, "Circle overlap operational intent reference")
+    OIR_TYPE = register_resource_type(
+        406, "Circle overlap operational intent reference"
+    )
 
     # Known red/green fixture from interuss/dss#1914.
     # Primary covers ~707 km², below the 2,500 km² OIR area limit.
@@ -39,7 +43,9 @@ class OIRCircleOverlap(TestScenario):
     def __init__(self, dss: DSSInstanceResource, id_generator: IDGeneratorResource):
         super().__init__()
         self._dss = dss.get_instance(
-            {Scope.StrategicCoordination: "create and query operational intent references"}
+            {
+                Scope.StrategicCoordination: "create and query operational intent references"
+            }
         )
         self._pid = [self._dss.participant_id]
         self._oir_id = id_generator.id_factory.make_id(self.OIR_TYPE)
