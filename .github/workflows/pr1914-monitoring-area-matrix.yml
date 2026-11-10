@@ -75,8 +75,8 @@ jobs:
           # Same directions/margins used by the existing cascade resource.
           lat_delta = north_m / 111195
           lng_delta = east_m / (111195 * 0.797)
-          block = re.sub(r"lat: (-?\\d+\\.\\d+)", lambda m: f"lat: {float(m[1])+lat_delta:.9f}", block)
-          block = re.sub(r"lng: (-?\\d+\\.\\d+)", lambda m: f"lng: {float(m[1])+lng_delta:.9f}", block)
+          block = re.sub(r"lat: (-?\d+\.\d+)", lambda m: f"lat: {float(m[1])+lat_delta:.9f}", block)
+          block = re.sub(r"lng: (-?\d+\.\d+)", lambda m: f"lng: {float(m[1])+lng_delta:.9f}", block)
           p.write_text(s[:a] + block + s[b:])
           print(f"planning area cascade index={offset}, east={east_m}m north={north_m}m")
           PY
