@@ -41,7 +41,11 @@ class OIRCircleOverlap(TestScenario):
     @staticmethod
     def _point_at(lat: float, lng: float, meters: float, bearing: float):
         """A point at a given bearing on a spherical Earth."""
-        lat1, lng1, angle = radians(lat), radians(lng), meters / OIRCircleOverlap._EARTH_RADIUS_M
+        lat1, lng1, angle = (
+            radians(lat),
+            radians(lng),
+            meters / OIRCircleOverlap._EARTH_RADIUS_M,
+        )
         direction = radians(bearing)
         lat2 = asin(sin(lat1) * cos(angle) + cos(lat1) * sin(angle) * cos(direction))
         lng2 = lng1 + atan2(
@@ -59,7 +63,9 @@ class OIRCircleOverlap(TestScenario):
         north_m = (bounds.lat_max - bounds.lat_min) * 111195 / 2
         east_m = (bounds.lng_max - bounds.lng_min) * 111195 * cos(radians(lat)) / 2
         if north_m < 1350 or east_m < 2300:
-            raise ValueError(f"Planning area too small for OIR circle regression: {bounds}")
+            raise ValueError(
+                f"Planning area too small for OIR circle regression: {bounds}"
+            )
         primary = Circle.from_meters(lat, lng, self._RADIUS_M)
         far_lat, far_lng = self._point_at(lat, lng, 1800, 90)
         distant = Circle.from_meters(far_lat, far_lng, 1)
@@ -124,20 +130,46 @@ class OIRCircleOverlap(TestScenario):
         for bearing, circle in boundary:
             self._search(
                 "Boundary overlap is discoverable",
-                circle, start, end, 30, 120, True, bearing,
+                circle,
+                start,
+                end,
+                30,
+                120,
+                True,
+                bearing,
             )
         self.end_test_step()
 
         # B–E: Negative controls and an ordinary positive control.
         cases = [
             ("Distant circle does not match", distant, start, end, 30, 120, False),
-            ("Disjoint altitude does not match", boundary[0][1], start, end, 250, 350, False),
+            (
+                "Disjoint altitude does not match",
+                boundary[0][1],
+                start,
+                end,
+                250,
+                350,
+                False,
+            ),
             (
                 "Disjoint time does not match",
-                boundary[0][1], end + timedelta(minutes=10),
-                end + timedelta(minutes=40), 30, 120, False,
+                boundary[0][1],
+                end + timedelta(minutes=10),
+                end + timedelta(minutes=40),
+                30,
+                120,
+                False,
             ),
-            ("Ordinary contained circle is discoverable", inside, start, end, 30, 120, True),
+            (
+                "Ordinary contained circle is discoverable",
+                inside,
+                start,
+                end,
+                30,
+                120,
+                True,
+            ),
         ]
         for title, circle, t0, t1, alt0, alt1, expected in cases:
             self.begin_test_step(title)
