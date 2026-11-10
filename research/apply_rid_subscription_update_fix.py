@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Apply a research-only change to a throwaway checkout of upstream DSS.
 
-An existing subscription occupies its original cells; only newly covered
-cells can increase the per-cell subscription count.
+An unexpired existing subscription occupies its original cells. Expired
+subscriptions do not count and renewed coverage needs an admission check.
 """
 from pathlib import Path
 p=Path("pkg/rid/operations/subscription.go")
@@ -18,13 +18,13 @@ s=prefix+marker+tail
 s=s.replace('import (\n\t"context"','import (\n\t"context"\n\t"slices"')
 s=s.replace('import (\n\t"context"\n\t"slices"','import (\n\t"context"\n\t"slices"\n\n\t"github.com/golang/geo/s2"')
 s+='''
-// checkSubscriptionCountOnUpdate checks only cells newly covered by an update.
-// Existing coverage already includes this subscription, so no new slot is used
-// in cells already covered by the previous version.
+// checkSubscriptionCountOnUpdate checks cells where the update consumes a new slot.
+// Existing non-expired coverage already counts; expired coverage does not.
 func checkSubscriptionCountOnUpdate(ctx context.Context, repo repos.Repository, old, sub *ridmodels.Subscription) error {
     added := make(s2.CellUnion, 0, len(sub.Cells))
+    oldExpired := old.EndTime != nil && old.EndTime.Before(timestamp.MustFromContext(ctx))
     for _, cell := range sub.Cells {
-        if !slices.Contains(old.Cells, cell) {
+        if oldExpired || !slices.Contains(old.Cells, cell) {
             added = append(added, cell)
         }
     }
