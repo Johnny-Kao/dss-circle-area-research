@@ -5,7 +5,6 @@ from math import asin, atan2, cos, degrees, radians, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
-
 from uas_standards.astm.f3548.v21.api import (
     OperationalIntentState,
     PutOperationalIntentReferenceParameters,
