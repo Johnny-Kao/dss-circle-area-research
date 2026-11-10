@@ -36,7 +36,7 @@ jobs:
           ids = root / "monitoring/monitorlib/ids.py"
           original = ids.read_text()
           assert "# Next code: 406" in original
-          ids.write_text(original.replace("# Next code: 406", "# Next code: 407", 1))
+          ids.write_text(original.replace("# Next code: 406", "# Next code: 408", 1))
           PY
           python3 -m py_compile monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
       - name: Install monitoring dependencies
