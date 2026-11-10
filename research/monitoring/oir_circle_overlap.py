@@ -33,9 +33,8 @@ class OIRCircleOverlap(TestScenario):
         407, "Circle overlap operational intent reference"
     )
 
-    # Known red/green fixture from interuss/dss#1914.
-    # Both circles are inside the official Kentland DSS probing planning area.
-    # Primary covers ~3.8 km², below the 2,500 km² OIR area limit.
+    # Fixed Kentland fixture: changing coordinates may hide the S2 boundary bug.
+    # All circles are inside the default test area; the OIR covers ~3.8 km².
     _PRIMARY = Circle.from_meters(37.2010000000, -80.5760000000, 1100)
     _QUERY = Circle.from_meters(37.2001131858, -80.5883072609, 1)
     _FAR = Circle.from_meters(37.201, -80.546, 1)
@@ -81,7 +80,9 @@ class OIRCircleOverlap(TestScenario):
         )
         self.end_test_step()
 
+        # Each case changes one query dimension while keeping the OIR unchanged.
         cases = [
+            # A: Catch the original false negative near the circle boundary.
             (
                 "Boundary overlap is discoverable",
                 self._QUERY,
@@ -91,6 +92,7 @@ class OIRCircleOverlap(TestScenario):
                 120,
                 True,
             ),
+            # B: Reject an OIR outside the horizontal search area.
             (
                 "Distant circle does not match",
                 self._FAR,
@@ -100,6 +102,7 @@ class OIRCircleOverlap(TestScenario):
                 120,
                 False,
             ),
+            # C: Reject a match outside the requested altitude range.
             (
                 "Disjoint altitude does not match",
                 self._QUERY,
@@ -109,6 +112,7 @@ class OIRCircleOverlap(TestScenario):
                 350,
                 False,
             ),
+            # D: Reject an OIR outside the requested time window.
             (
                 "Disjoint time does not match",
                 self._QUERY,
@@ -118,6 +122,7 @@ class OIRCircleOverlap(TestScenario):
                 120,
                 False,
             ),
+            # E: Keep a normal positive control, away from the boundary.
             (
                 "Ordinary contained circle is discoverable",
                 self._INSIDE,
@@ -138,6 +143,7 @@ class OIRCircleOverlap(TestScenario):
                     found, response = self._dss.find_op_intent(query)
                     self.record_query(response)
                     ids = {oir.id for oir in found}
+                    # Check the specific OIR, not just whether HTTP returned 200.
                     actual = self._oir_id in ids
                     if actual != expected:
                         check.record_failed(
