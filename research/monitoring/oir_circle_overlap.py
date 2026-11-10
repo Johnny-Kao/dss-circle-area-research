@@ -34,9 +34,10 @@ class OIRCircleOverlap(TestScenario):
     )
 
     # Known red/green fixture from interuss/dss#1914.
-    # Primary covers ~707 km², below the 2,500 km² OIR area limit.
-    _PRIMARY = Circle.from_meters(37.427636, -122.170502, 15000)
-    _QUERY = Circle.from_meters(37.450505047, -122.003926497, 20)
+    # Both circles are inside the official Kentland DSS probing planning area.
+    # Primary covers ~3.8 km², below the 2,500 km² OIR area limit.
+    _PRIMARY = Circle.from_meters(37.2010000000, -80.5760000000, 1100)
+    _QUERY = Circle.from_meters(37.2001131858, -80.5883072609, 1)
 
     _dss: DSSInstance
 
@@ -90,8 +91,8 @@ class OIRCircleOverlap(TestScenario):
                     check.record_failed(
                         summary="Overlapping OIR was missing from the search",
                         details=(
-                            "An OIR with a 15 km circular extent was not returned for "
-                            "a geographically overlapping 20 m query circle."
+                            "An OIR with a 1.1 km circular extent was not returned for "
+                            "a geographically overlapping 1 m query circle."
                         ),
                         query_timestamps=[response.request.timestamp],
                     )
