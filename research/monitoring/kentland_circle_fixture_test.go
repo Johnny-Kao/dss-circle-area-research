@@ -17,8 +17,14 @@ func TestResearchKentlandCircleOverlapFixture(t *testing.T) {
         {Lat: 37.1980, Lng: -80.5800},
         {Lat: 37.2020, Lng: -80.5800},
         {Lat: 37.2050, Lng: -80.5900},
+        {Lat: 37.1950, Lng: -80.5600},
+        {Lat: 37.2100, Lng: -80.5600},
+        {Lat: 37.1900, Lng: -80.6000},
+        {Lat: 37.2050, Lng: -80.6000},
+        {Lat: 37.2050, Lng: -80.5500},
+        {Lat: 37.1950, Lng: -80.6000},
     }
-    radii := []float32{1000, 1300, 1500}
+    radii := []float32{1000, 1500, 2000, 3000, 5000, 10000, 15000, 20000}
 
     for _, center := range centers {
         for _, radius := range radii {
