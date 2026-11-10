@@ -62,12 +62,12 @@ class OIRCircleOverlap(TestScenario):
         # Fail explicitly when a configured area cannot fit the test geometry.
         north_m = (bounds.lat_max - bounds.lat_min) * 111195 / 2
         east_m = (bounds.lng_max - bounds.lng_min) * 111195 * cos(radians(lat)) / 2
-        if north_m < 1350 or east_m < 2300:
+        if north_m < 1350 or east_m < 2950:
             raise ValueError(
                 f"Planning area too small for OIR circle regression: {bounds}"
             )
         primary = Circle.from_meters(lat, lng, self._RADIUS_M)
-        far_lat, far_lng = self._point_at(lat, lng, 1800, 90)
+        far_lat, far_lng = self._point_at(lat, lng, 2500, 90)
         distant = Circle.from_meters(far_lat, far_lng, 1)
         inside = Circle.from_meters(lat, lng, 200)
         # Sweep the gaps between vertices of the old 20-sided approximation.
