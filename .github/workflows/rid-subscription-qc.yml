@@ -34,8 +34,9 @@ jobs:
           git -C dss rev-parse HEAD
           cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
           cp research/research/rid_subscription_move_limit_test.go dss/pkg/rid/operations/rid_subscription_move_limit_research_test.go
-          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
-          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_*_research_test.go
+          cp research/research/rid_subscription_time_sql_test.go dss/pkg/rid/store/sqlstore/rid_subscription_time_sql_research_test.go
+          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_*_research_test.go
           git -C dss diff --check
       - name: RED - prove the update at limit fails only at the expected assertion
         working-directory: dss
@@ -97,10 +98,11 @@ jobs:
       - name: Inject tests
         run: |
           git -C dss rev-parse HEAD
-          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          cp research/research/rid_subscription_sql_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_*_research_test.go
+          cp research/research/rid_subscription_time_sql_test.go dss/pkg/rid/store/sqlstore/rid_subscription_time_sql_research_test.go
           cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
           cp research/research/rid_subscription_move_limit_test.go dss/pkg/rid/operations/rid_subscription_move_limit_research_test.go
-          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_sql_research_test.go
+          gofmt -w dss/pkg/rid/operations/rid_subscription_*_research_test.go dss/pkg/rid/store/sqlstore/rid_subscription_*_research_test.go
       - name: Start CockroachDB and migrate using upstream commands
         working-directory: dss
         run: |
