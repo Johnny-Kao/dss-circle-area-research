@@ -47,7 +47,7 @@ jobs:
           code=$?
           set -e
           test "$code" -ne 0
-          grep -q '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../unit-red.log || grep -q -- '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../unit-red.log
+          grep -q -- '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../unit-red.log
           grep -q 'updating one of 10 existing subscriptions should not be rejected as an 11th' ../unit-red.log
       - name: Apply research-only fix
         working-directory: dss
