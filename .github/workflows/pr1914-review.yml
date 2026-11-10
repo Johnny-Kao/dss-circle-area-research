@@ -1,0 +1,48 @@
+name: PR 1914 review-only research
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/apply_pr1914_review.py'
+      - '.github/workflows/pr1914-review.yml'
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/dss
+          ref: fix-circle-s2-covering
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Apply exact review requested file moves
+        run: |
+          python3 research/research/apply_pr1914_review.py
+          gofmt -w dss/pkg/models/geo_test.go dss/pkg/scd/store/memstore/operational_intents_test.go
+          test ! -f dss/pkg/models/circle_covering_test.go
+          test ! -f dss/pkg/scd/store/memstore/circle_covering_test.go
+          git -C dss diff --check
+      - name: Full relevant package suites
+        working-directory: dss
+        run: go test -count=1 ./pkg/models ./pkg/scd/models ./pkg/scd/store/memstore ./pkg/rid/models/api/v1 ./pkg/rid/models/api/v2
+      - name: Confirm formatting and diff
+        run: |
+          test -z "$(gofmt -l dss/pkg/models/geo_test.go dss/pkg/scd/store/memstore/operational_intents_test.go)"
+          git -C dss status --short
+          git -C dss diff --stat
+      - name: Save reviewed source files
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr1914-review-ready
+          path: |
+            dss/pkg/models/geo_test.go
+            dss/pkg/scd/store/memstore/operational_intents_test.go
