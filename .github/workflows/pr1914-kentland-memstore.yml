@@ -1,0 +1,53 @@
+name: Kentland API fixture memstore red-green
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/monitoring/kentland_memstore_test.go'
+      - '.github/workflows/pr1914-kentland-memstore.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Install targeted Kentland memstore test
+        run: |
+          cp research/research/monitoring/kentland_memstore_test.go dss/pkg/scd/store/memstore/kentland_memstore_test.go
+          gofmt -w dss/pkg/scd/store/memstore/kentland_memstore_test.go
+      - name: Old covering fails for a real memstore query
+        shell: bash
+        run: |
+          set +e
+          (cd dss && go test -v -count=1 -run '^TestKentlandCircleOverlappingIntentIsDiscoverable$' ./pkg/scd/store/memstore) > red.log 2>&1
+          status=$?
+          set -e
+          tee /dev/stderr < red.log
+          test "$status" -ne 0
+          grep -q "FAIL: TestKentlandCircleOverlappingIntentIsDiscoverable" red.log
+          grep -q "An overlapping operational intent must be discoverable" red.log
+      - name: Apply verified S2 Cap fix
+        run: git -C dss apply --unidiff-zero ../research/patches/bug2-cap.patch
+      - name: Fixed covering returns the intent
+        working-directory: dss
+        run: go test -v -count=1 -run '^TestKentlandCircleOverlappingIntentIsDiscoverable$' ./pkg/scd/store/memstore
+      - name: Record evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kentland-red
+          path: red.log
+          if-no-files-found: ignore
