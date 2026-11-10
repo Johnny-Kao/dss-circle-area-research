@@ -54,22 +54,7 @@ jobs:
           original=config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1)
           assert "  validation:\\n" in original
           original=original.split("  validation:\\n",1)[0]
-          original += """  validation:
-    criteria:
-      - applicability:
-          test_scenarios: {}
-        pass_condition:
-          each_element:
-            has_execution_error: false
-      - applicability:
-          failed_checks:
-            has_severity:
-              higher_than: Low
-        pass_condition:
-          elements:
-            count:
-              equal_to: 0
-"""
+          original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
           config.write_text(original)
           PY
       - name: Run actual local DSS API regression
