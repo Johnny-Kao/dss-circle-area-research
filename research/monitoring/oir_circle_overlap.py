@@ -76,7 +76,8 @@ class OIRCircleOverlap(TestScenario):
                     ) < radius + 5:
                         continue
 
-                    to_xy = lambda p: (p[1] * meters_lng, p[0] * meters_lat)
+                    def to_xy(point):
+                        return point[1] * meters_lng, point[0] * meters_lat
                     old_polygon = Polygon(
                         [
                             to_xy(self._point_at(lat, lng, radius, bearing))
