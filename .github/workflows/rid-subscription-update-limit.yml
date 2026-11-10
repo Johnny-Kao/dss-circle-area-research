@@ -1,0 +1,61 @@
+name: RID subscription update-at-limit RED verification
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - research/rid-subscription-update-limit
+    paths:
+      - 'research/rid_subscription_update_limit_test.go'
+      - '.github/workflows/rid-subscription-update-limit.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          path: research
+      - name: Checkout untouched DSS upstream
+        uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: master
+          path: dss
+      - name: Record upstream commit
+        run: git -C dss rev-parse HEAD
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Inject independent regression (no production code modifications)
+        run: |
+          cp research/research/rid_subscription_update_limit_test.go dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go
+          test -z "$(gofmt -l dss/pkg/rid/operations/rid_subscription_update_limit_research_test.go)"
+      - name: CONTROL — update below cap succeeds
+        working-directory: dss
+        run: go test -count=1 -v -run '^TestUpdateSubscriptionBelowAreaLimitControl$' ./pkg/rid/operations
+      - name: RED — update at cap should succeed but currently fails
+        working-directory: dss
+        shell: bash
+        run: |
+          set +e
+          go test -count=1 -v -run '^TestUpdateSubscriptionAtAreaLimit$' ./pkg/rid/operations 2>&1 | tee ../rid-update-red.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then echo 'Unexpected GREEN: no regression reproduced'; exit 1; fi
+          grep -q -- '--- FAIL: TestUpdateSubscriptionAtAreaLimit' ../rid-update-red.log || { echo 'No actual test assertion failure'; exit 1; }
+          grep -q -- 'updating one of 10 existing subscriptions should not be rejected as an 11th' ../rid-update-red.log || { echo 'Not the expected boundary failure'; exit 1; }
+          if grep -Eq '\\[build failed\\]|setup failed|no required module provides package' ../rid-update-red.log; then
+            echo 'Build/dependency failure is not a reproduced bug'; exit 1
+          fi
+          echo 'CONFIRMED RED: the update-at-cap regression failed at the expected assertion'
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rid-update-at-limit-red-evidence
+          path: rid-update-red.log
+          if-no-files-found: ignore
