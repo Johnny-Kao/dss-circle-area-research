@@ -68,16 +68,20 @@ class OIRCircleOverlap(TestScenario):
                 meters_lat = 111195
                 meters_lng = meters_lat * cos(radians(lat))
                 for radius in (900, 1100, 1300):
-                    if min(
-                        (lat - bounds.lat_min) * meters_lat,
-                        (bounds.lat_max - lat) * meters_lat,
-                        (lng - bounds.lng_min) * meters_lng,
-                        (bounds.lng_max - lng) * meters_lng,
-                    ) < radius + 5:
+                    if (
+                        min(
+                            (lat - bounds.lat_min) * meters_lat,
+                            (bounds.lat_max - lat) * meters_lat,
+                            (lng - bounds.lng_min) * meters_lng,
+                            (bounds.lng_max - lng) * meters_lng,
+                        )
+                        < radius + 5
+                    ):
                         continue
 
                     def to_xy(point):
                         return point[1] * meters_lng, point[0] * meters_lat
+
                     old_polygon = Polygon(
                         [
                             to_xy(self._point_at(lat, lng, radius, bearing))
@@ -108,17 +112,18 @@ class OIRCircleOverlap(TestScenario):
                             cell_polygon = cells[cell_id.id()]
                             if cell_polygon.intersects(old_polygon):
                                 continue
-                            if cell_polygon.boundary.distance(
-                                Point(to_xy((qlat, qlng)))
-                            ) <= 3:
+                            if (
+                                cell_polygon.boundary.distance(
+                                    Point(to_xy((qlat, qlng)))
+                                )
+                                <= 3
+                            ):
                                 continue
 
                             # Keep the negative control well away from S2 false positives.
                             distant = None
                             for far_bearing in (90, 270, 0, 180):
-                                flat, flng = self._point_at(
-                                    lat, lng, 2500, far_bearing
-                                )
+                                flat, flng = self._point_at(lat, lng, 2500, far_bearing)
                                 if (
                                     bounds.lat_min < flat < bounds.lat_max
                                     and bounds.lng_min < flng < bounds.lng_max
