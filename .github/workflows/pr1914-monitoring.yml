@@ -41,7 +41,7 @@ jobs:
           python3 -m py_compile monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
       - name: Install monitoring dependencies
         working-directory: monitoring
-        run: uv sync --locked --no-install-project
+        run: uv sync --locked --no-install-project --group dev
       - name: Ruff format and lint
         working-directory: monitoring
         run: |
