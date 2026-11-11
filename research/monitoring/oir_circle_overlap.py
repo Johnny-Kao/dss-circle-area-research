@@ -174,10 +174,17 @@ class OIRCircleOverlap(TestScenario):
             self.end_test_step()
 
             # B–E: Validate spatial, altitude and time filtering.
-            self._check_step("Distant circle does not match", distant, start, end, expected=False)
+            self._check_step(
+                "Distant circle does not match", distant, start, end, expected=False
+            )
             self._check_step(
                 "Disjoint altitude does not match",
-                boundary[0][1], start, end, alt0=250, alt1=350, expected=False,
+                boundary[0][1],
+                start,
+                end,
+                alt0=250,
+                alt1=350,
+                expected=False,
             )
             self._check_step(
                 "Disjoint time does not match",
