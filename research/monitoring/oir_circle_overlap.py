@@ -53,7 +53,7 @@ class OIRCircleOverlap(TestScenario):
             # The 1m query circle must remain within the registered 700m circle.
             primary = Circle.from_meters(lat, lng, 700)
             boundary = [(name, Circle.from_meters(query_lat, query_lng, 1))]
-            distant = Circle.from_meters(lat, lng + 0.03, 1)
+            distant = Circle.from_meters(lat, lng - 0.024, 1)
             inside = Circle.from_meters(lat, lng, 200)
             return primary, boundary, distant, inside
         raise ValueError(
