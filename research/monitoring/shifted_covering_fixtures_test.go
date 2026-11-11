@@ -14,7 +14,7 @@ func TestResearchShiftedCoveringFixtures(t *testing.T) {
   areas := []struct{name string; minLat,maxLat,minLng,maxLng float64}{
     {"kentland",37.1853,37.2148,-80.6140,-80.5440},
     {"east10km",37.1853,37.2148,-80.6140+10000/(111195*0.797),-80.5440+10000/(111195*0.797)},
-    {"south10km",37.1853-10000/111195,37.2148-10000/111195,-80.6140,-80.5440},
+    {"south10km",37.1853-10000.0/111195.0,37.2148-10000.0/111195.0,-80.6140,-80.5440},
   }
   for _,area := range areas {
     t.Run(area.name,func(t *testing.T) {
