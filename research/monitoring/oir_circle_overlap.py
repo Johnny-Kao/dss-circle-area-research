@@ -1,6 +1,10 @@
 """API regression for circular OIR overlap at the S2 covering boundary."""
 
 from datetime import UTC, datetime, timedelta
+from math import asin, atan2, cos, degrees, radians, sin
+
+import s2sphere
+from shapely.geometry import Polygon
 
 from uas_standards.astm.f3548.v21.api import (
     OperationalIntentState,
@@ -34,54 +38,118 @@ class OIRCircleOverlap(TestScenario):
         407, "Circle overlap operational intent reference"
     )
 
-    # Fixtures verified by Go's actual old 20-gon and fixed S2 Cap covering.
-    # Keep this table explicit: unverified coordinates must never silently PASS.
-    _FIXTURES = (
-        (
-            "kentland",
-            37.1853,
-            -80.6140,
-            37.1925500000,
-            -80.5598000000,
-            37.1974823562,
-            -80.5549020408,
-        ),
-        (
-            "east10km",
-            37.1853,
-            -80.6140 + 10000 / (111195 * 0.797),
-            37.1938000000,
-            -80.4725617299,
-            37.1902924429,
-            -80.4660090559,
-        ),
-        (
-            "south10km",
-            37.1853 - 10000 / 111195,
-            -80.6140,
-            37.1026178987,
-            -80.5582000000,
-            37.1026541287,
-            -80.5660772463,
-        ),
-    )
+    _EARTH_RADIUS_M = 6371010.0
+
+    @staticmethod
+    def _point_at(lat, lng, meters, bearing):
+        """Move along a great-circle bearing, in meters."""
+        lat1, lng1, angle = radians(lat), radians(lng), meters / 6371010.0
+        theta = radians(bearing)
+        lat2 = asin(sin(lat1) * cos(angle) + cos(lat1) * sin(angle) * cos(theta))
+        lng2 = lng1 + atan2(
+            sin(theta) * sin(angle) * cos(lat1),
+            cos(angle) - sin(lat1) * sin(lat2),
+        )
+        return degrees(lat2), degrees(lng2)
 
     def _circles(self):
+        """Find a boundary query whose entire S2 footprint misses the old 20-gon."""
         bounds = self._planning_area.get_extents()
-        for name, min_lat, min_lng, lat, lng, query_lat, query_lng in self._FIXTURES:
-            if (
-                abs(bounds.lat_min - min_lat) > 0.0001
-                or abs(bounds.lng_min - min_lng) > 0.0001
-            ):
-                continue
-            # The 1m query circle must remain within the registered 700m circle.
-            primary = Circle.from_meters(lat, lng, 700)
-            boundary = [(name, Circle.from_meters(query_lat, query_lng, 1))]
-            distant = Circle.from_meters(lat, lng - 0.024, 1)
-            inside = Circle.from_meters(lat, lng, 200)
-            return primary, boundary, distant, inside
+        mid_lat = (bounds.lat_min + bounds.lat_max) / 2
+        mid_lng = (bounds.lng_min + bounds.lng_max) / 2
+
+        # Use S2 cells for all 1m query positions, not just the center cell.
+        # Otherwise a nearby cell may make the old implementation pass.
+        def cells_of_circle(lat, lng):
+            cells = set()
+            for bearing in range(0, 360, 30):
+                p_lat, p_lng = self._point_at(lat, lng, 1, bearing)
+                cells.add(
+                    s2sphere.CellId.from_lat_lng(
+                        s2sphere.LatLng.from_degrees(p_lat, p_lng)
+                    ).parent(13).id()
+                )
+            cells.add(
+                s2sphere.CellId.from_lat_lng(
+                    s2sphere.LatLng.from_degrees(lat, lng)
+                ).parent(13).id()
+            )
+            return cells
+
+        for i in range(-9, 10):
+            for j in range(-12, 13):
+                lat = mid_lat + i * 0.00125
+                lng = mid_lng + j * 0.00175
+                meters_lat = 111195.0
+                meters_lng = meters_lat * cos(radians(lat))
+                for radius in (700, 900, 1100, 1300):
+                    clearance = min(
+                        (lat - bounds.lat_min) * meters_lat,
+                        (bounds.lat_max - lat) * meters_lat,
+                        (lng - bounds.lng_min) * meters_lng,
+                        (bounds.lng_max - lng) * meters_lng,
+                    )
+                    if clearance < radius + 20:
+                        continue
+
+                    def xy(v_lat, v_lng):
+                        return v_lng * meters_lng, v_lat * meters_lat
+
+                    old = Polygon(
+                        [
+                            xy(*self._point_at(lat, lng, radius, bearing))
+                            for bearing in range(0, 360, 18)
+                        ]
+                    )
+                    cache = {}
+                    for fraction in (0.99, 0.995, 0.998):
+                        for bearing in range(0, 360, 3):
+                            qlat, qlng = self._point_at(
+                                lat, lng, radius * fraction, bearing
+                            )
+                            query_cells = cells_of_circle(qlat, qlng)
+                            excluded = True
+                            for cell_id in query_cells:
+                                if cell_id not in cache:
+                                    cell = s2sphere.Cell(s2sphere.CellId(cell_id))
+                                    vertices = [
+                                        s2sphere.LatLng.from_point(
+                                            cell.get_vertex(k)
+                                        )
+                                        for k in range(4)
+                                    ]
+                                    cache[cell_id] = Polygon(
+                                        [
+                                            xy(v.lat().degrees, v.lng().degrees)
+                                            for v in vertices
+                                        ]
+                                    )
+                                if cache[cell_id].intersects(old):
+                                    excluded = False
+                                    break
+                            if not excluded:
+                                continue
+
+                            # Pick a control far enough away, but still in the area.
+                            distant = None
+                            for direction in (0, 90, 180, 270):
+                                f_lat, f_lng = self._point_at(lat, lng, 2500, direction)
+                                if (
+                                    bounds.lat_min < f_lat < bounds.lat_max
+                                    and bounds.lng_min < f_lng < bounds.lng_max
+                                ):
+                                    distant = Circle.from_meters(f_lat, f_lng, 1)
+                                    break
+                            if distant is None:
+                                continue
+                            return (
+                                Circle.from_meters(lat, lng, radius),
+                                [(bearing, Circle.from_meters(qlat, qlng, 1))],
+                                distant,
+                                Circle.from_meters(lat, lng, 200),
+                            )
         raise ValueError(
-            f"No Go-verified S2 boundary fixture for planning area {bounds}"
+            f"No robust S2 regression fixture fits planning area {bounds}"
         )
 
     _dss: DSSInstance
@@ -131,7 +199,7 @@ class OIRCircleOverlap(TestScenario):
         )
         self.end_test_step()
 
-        # A: Detect the old S2 false negative using a Go-verified fixture.
+        # A: Catch a small boundary overlap omitted by the old polygon.
         self.begin_test_step("Boundary overlap is discoverable")
         for bearing, circle in boundary:
             self._search(
