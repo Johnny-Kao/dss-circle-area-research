@@ -6,13 +6,18 @@ Tests the DSS operational intent reference search API when a small query circle
 overlaps a larger registered circle close to its boundary. This is an HTTP-level
 regression for the false negative fixed in interuss/dss#1914.
 
-The scenario derives its circles from the configured PlanningAreaResource. It
-requires a test area large enough to contain an OIR circle (900–1300 m radius)
-and a distant control.
-A selected small search at an S2 cell gap in the former 20-sided approximation
-protects against the false negative from interuss/dss#1914. The gap is found
-using the project's existing S2 and geometry dependencies. The other four queries
-check horizontal separation, altitude, time, and an ordinary overlap.
+The scenario places four circular references relative to the configured
+PlanningAreaResource, without requiring Kentland GPS coordinates. Each reference
+is searched with four overlapping 1 m circles near its boundary; other queries
+verify horizontal separation, altitude, time, and ordinary overlap.
+
+The four geometry patterns were checked against the actual old 20-gon S2
+covering and the fixed S2 Cap covering in five translated planning areas.
+At least one boundary query reproduces the old false negative in each area.
+The test requires sufficient horizontal room for its circles and controls;
+areas that are too small fail explicitly rather than silently passing.
+A geographical setting not covered by those five research areas is still
+tested for correct behavior, but a failure of the old code is not guaranteed.
 
 ## Resources
 
@@ -50,8 +55,8 @@ A test-owned OIR must be removable by ID and correct OVN under
 
 ### Create large circular OIR test step
 
-Create an accepted OIR with a 1,100 m circular footprint and matching
-time and altitude bounds.
+Create an accepted circular OIR (700–1,100 m radius) with matching time
+and altitude bounds. Repeat for each of the four relative geometry patterns.
 
 #### 🛑 Create operational intent reference query succeeds check
 
@@ -59,9 +64,8 @@ Valid OIR creation must succeed under **[astm.f3548.v21.DSS0005,1](../../../../r
 
 ### Boundary overlap is discoverable test step
 
-A 1 m circle inside the registered circle, chosen within an S2 cell missed
-by the former polygon approximation, must find the OIR. The time and altitude
-intervals also overlap.
+Four 1 m circles overlapping the boundary of the registered circle must
+each find the OIR. The time and altitude intervals also overlap.
 
 #### 🛑 Boundary overlap is discoverable check
 
