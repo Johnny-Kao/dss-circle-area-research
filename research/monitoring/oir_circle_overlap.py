@@ -76,9 +76,7 @@ class OIRCircleOverlap(TestScenario):
                 (bounds.lng_max - lng) * meters_lng,
             )
             if clearance <= radius + 50:
-                raise ValueError(
-                    f"Planning area too small for circular test: {bounds}"
-                )
+                raise ValueError(f"Planning area too small for circular test: {bounds}")
             primary = Circle.from_meters(lat, lng, radius)
             # Four edge probes; Go tests verify that at least one catches
             # the old implementation in each reference planning area.
