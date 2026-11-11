@@ -173,24 +173,21 @@ class OIRCircleOverlap(TestScenario):
                 )
             self.end_test_step()
 
-            # B–E: Keep the four 4D positive/negative controls.
-            self._check_step(
-                "Distant circle does not match", distant, start, end, 30, 120, False
-            )
+            # B–E: Validate spatial, altitude and time filtering.
+            self._check_step("Distant circle does not match", distant, start, end, expected=False)
             self._check_step(
                 "Disjoint altitude does not match",
-                boundary[0][1], start, end, 250, 350, False,
+                boundary[0][1], start, end, alt0=250, alt1=350, expected=False,
             )
             self._check_step(
                 "Disjoint time does not match",
                 boundary[0][1],
                 end + timedelta(minutes=10),
                 end + timedelta(minutes=40),
-                30, 120, False,
+                expected=False,
             )
             self._check_step(
-                "Ordinary contained circle is discoverable",
-                inside, start, end, 30, 120, True,
+                "Ordinary contained circle is discoverable", inside, start, end
             )
 
             self.begin_test_step("Delete large circular OIR")
@@ -206,7 +203,7 @@ class OIRCircleOverlap(TestScenario):
         self.end_test_case()
         self.end_test_scenario()
 
-    def _check_step(self, title, circle, t0, t1, alt0, alt1, expected):
+    def _check_step(self, title, circle, t0, t1, *, alt0=30, alt1=120, expected=True):
         self.begin_test_step(title)
         self._search(title, circle, t0, t1, alt0, alt1, expected)
         self.end_test_step()
