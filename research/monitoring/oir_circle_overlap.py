@@ -134,86 +134,86 @@ class OIRCircleOverlap(TestScenario):
         self.end_test_case()
 
         self.begin_test_case("Discover an OIR through an overlapping circle")
-        primary, boundary, distant, inside = self._circles()
-        start = datetime.now(UTC) + timedelta(minutes=5)
-        end = start + timedelta(minutes=60)
-        self.begin_test_step("Create large circular OIR")
-        params = PutOperationalIntentReferenceParameters(
-            extents=[
-                Volume4D.from_values(
-                    t0=start, t1=end, alt0=30, alt1=120, circle=primary
-                ).to_f3548v21()
-            ],
-            key=[],
-            state=OperationalIntentState.Accepted,
-            uss_base_url=make_fake_url(),
-            subscription_id=None,
-        )
-        self._created_oir, _, _ = oir_fragments.create_oir_query(
-            scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
-        )
-        self.end_test_step()
-
-        # A: Catch a small boundary overlap omitted by the old polygon.
-        self.begin_test_step("Boundary overlap is discoverable")
-        for bearing, circle in boundary:
-            self._search(
-                "Boundary overlap is discoverable",
-                circle,
-                start,
-                end,
-                30,
-                120,
-                True,
-                bearing,
+        for primary, boundary, distant, inside in self._circles():
+            start = datetime.now(UTC) + timedelta(minutes=5)
+            end = start + timedelta(minutes=60)
+            self.begin_test_step("Create large circular OIR")
+            params = PutOperationalIntentReferenceParameters(
+                extents=[
+                    Volume4D.from_values(
+                        t0=start, t1=end, alt0=30, alt1=120, circle=primary
+                    ).to_f3548v21()
+                ],
+                key=[],
+                state=OperationalIntentState.Accepted,
+                uss_base_url=make_fake_url(),
+                subscription_id=None,
             )
-        self.end_test_step()
-
-        # B–E: Negative controls and an ordinary positive control.
-        cases = [
-            ("Distant circle does not match", distant, start, end, 30, 120, False),
-            (
-                "Disjoint altitude does not match",
-                boundary[0][1],
-                start,
-                end,
-                250,
-                350,
-                False,
-            ),
-            (
-                "Disjoint time does not match",
-                boundary[0][1],
-                end + timedelta(minutes=10),
-                end + timedelta(minutes=40),
-                30,
-                120,
-                False,
-            ),
-            (
-                "Ordinary contained circle is discoverable",
-                inside,
-                start,
-                end,
-                30,
-                120,
-                True,
-            ),
-        ]
-        for title, circle, t0, t1, alt0, alt1, expected in cases:
-            self.begin_test_step(title)
-            self._search(title, circle, t0, t1, alt0, alt1, expected)
+            self._created_oir, _, _ = oir_fragments.create_oir_query(
+                scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
+            )
             self.end_test_step()
 
-        self.begin_test_step("Delete large circular OIR")
-        oir_fragments.delete_oir_query(
-            scenario=self,
-            dss=self._dss,
-            oir_id=self._oir_id,
-            ovn=self._created_oir.ovn,
-        )
-        self._created_oir = None
-        self.end_test_step()
+            # A: Catch a small boundary overlap omitted by the old polygon.
+            self.begin_test_step("Boundary overlap is discoverable")
+            for bearing, circle in boundary:
+                self._search(
+                    "Boundary overlap is discoverable",
+                    circle,
+                    start,
+                    end,
+                    30,
+                    120,
+                    True,
+                    bearing,
+                )
+            self.end_test_step()
+
+            # B–E: Negative controls and an ordinary positive control.
+            cases = [
+                ("Distant circle does not match", distant, start, end, 30, 120, False),
+                (
+                    "Disjoint altitude does not match",
+                    boundary[0][1],
+                    start,
+                    end,
+                    250,
+                    350,
+                    False,
+                ),
+                (
+                    "Disjoint time does not match",
+                    boundary[0][1],
+                    end + timedelta(minutes=10),
+                    end + timedelta(minutes=40),
+                    30,
+                    120,
+                    False,
+                ),
+                (
+                    "Ordinary contained circle is discoverable",
+                    inside,
+                    start,
+                    end,
+                    30,
+                    120,
+                    True,
+                ),
+            ]
+            for title, circle, t0, t1, alt0, alt1, expected in cases:
+                self.begin_test_step(title)
+                self._search(title, circle, t0, t1, alt0, alt1, expected)
+                self.end_test_step()
+
+            self.begin_test_step("Delete large circular OIR")
+            oir_fragments.delete_oir_query(
+                scenario=self,
+                dss=self._dss,
+                oir_id=self._oir_id,
+                ovn=self._created_oir.ovn,
+            )
+            self._created_oir = None
+            self.end_test_step()
 
         self.end_test_case()
         self.end_test_scenario()
