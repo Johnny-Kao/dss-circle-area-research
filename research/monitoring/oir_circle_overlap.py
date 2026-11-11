@@ -61,8 +61,12 @@ class OIRCircleOverlap(TestScenario):
         base_lng = (bounds.lng_min + bounds.lng_max) / 2 + 0.003
 
         # Select a real S2 level-13 gap in the old 20-gon approximation.
-        for dlat in (0, 0.002, -0.002, 0.004, -0.004, 0.006, -0.006):
-            for dlng in (0, 0.003, -0.003, 0.006, -0.006, 0.009, -0.009):
+        # Sweep the entire usable area rather than seven coarse latitude lines.
+        # A valid S2 gap may shift with the absolute cell grid.
+        for i in range(-11, 12):
+            dlat = i * 0.00125
+            for j in range(-20, 21):
+                dlng = j * 0.00175
                 lat, lng = base_lat + dlat, base_lng + dlng
                 meters_lat = 111195
                 meters_lng = meters_lat * cos(radians(lat))
