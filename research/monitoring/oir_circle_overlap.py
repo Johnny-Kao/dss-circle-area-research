@@ -50,7 +50,11 @@ class OIRCircleOverlap(TestScenario):
     @staticmethod
     def _point_at(lat, lng, meters, bearing):
         """Locate a point along a great-circle bearing."""
-        lat1, lng1, angle = radians(lat), radians(lng), meters / OIRCircleOverlap._EARTH_RADIUS_M
+        lat1, lng1, angle = (
+            radians(lat),
+            radians(lng),
+            meters / OIRCircleOverlap._EARTH_RADIUS_M,
+        )
         theta = radians(bearing)
         lat2 = asin(sin(lat1) * cos(angle) + cos(lat1) * sin(angle) * cos(theta))
         lng2 = lng1 + atan2(
@@ -81,7 +85,10 @@ class OIRCircleOverlap(TestScenario):
             distant = None
             for heading in (0, 90, 180, 270):
                 f_lat, f_lng = self._point_at(lat, lng, radius + 1500, heading)
-                if bounds.lat_min < f_lat < bounds.lat_max and bounds.lng_min < f_lng < bounds.lng_max:
+                if (
+                    bounds.lat_min < f_lat < bounds.lat_max
+                    and bounds.lng_min < f_lng < bounds.lng_max
+                ):
                     distant = Circle.from_meters(f_lat, f_lng, 1)
                     break
             if distant is None:
@@ -89,10 +96,20 @@ class OIRCircleOverlap(TestScenario):
 
             # The four boundary probes were chosen by comparing old/new Go S2 coverings.
             boundary = [
-                (heading, Circle.from_meters(*self._point_at(lat, lng, radius * fraction, heading), 1))
+                (
+                    heading,
+                    Circle.from_meters(
+                        *self._point_at(lat, lng, radius * fraction, heading), 1
+                    ),
+                )
                 for heading in self._BEARINGS
             ]
-            yield Circle.from_meters(lat, lng, radius), boundary, distant, Circle.from_meters(lat, lng, 200)
+            yield (
+                Circle.from_meters(lat, lng, radius),
+                boundary,
+                distant,
+                Circle.from_meters(lat, lng, 200),
+            )
 
     _dss: DSSInstance
 
@@ -159,10 +176,33 @@ class OIRCircleOverlap(TestScenario):
             # B–E: Confirm that location, altitude and time are actually filtered.
             cases = (
                 ("Distant circle does not match", distant, start, end, 30, 120, False),
-                ("Disjoint altitude does not match", boundary[0][1], start, end, 250, 350, False),
-                ("Disjoint time does not match", boundary[0][1],
-                 end + timedelta(minutes=10), end + timedelta(minutes=40), 30, 120, False),
-                ("Ordinary contained circle is discoverable", inside, start, end, 30, 120, True),
+                (
+                    "Disjoint altitude does not match",
+                    boundary[0][1],
+                    start,
+                    end,
+                    250,
+                    350,
+                    False,
+                ),
+                (
+                    "Disjoint time does not match",
+                    boundary[0][1],
+                    end + timedelta(minutes=10),
+                    end + timedelta(minutes=40),
+                    30,
+                    120,
+                    False,
+                ),
+                (
+                    "Ordinary contained circle is discoverable",
+                    inside,
+                    start,
+                    end,
+                    30,
+                    120,
+                    True,
+                ),
             )
             for title, circle, t0, t1, low, high, expected in cases:
                 self.begin_test_step(title)
