@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        offset: [0, 1, 2]
+        offset: [0, 1, 2, 3, 4]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +71,7 @@ jobs:
           b = s.index("        planning_area:\n", a)
           block = s[a:b]
           offset = int(os.environ["AREA_OFFSET"])
-          east_m, north_m = [(0, 0), (10000, 0), (0, -10000)][offset]
+          east_m, north_m = [(0, 0), (10000, 0), (0, -10000), (-10000, 0), (0, 10000)][offset]
           # Same directions/margins used by the existing cascade resource.
           lat_delta = north_m / 111195
           lng_delta = east_m / (111195 * 0.797)
