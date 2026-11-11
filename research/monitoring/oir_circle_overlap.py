@@ -37,18 +37,42 @@ class OIRCircleOverlap(TestScenario):
     # Fixtures verified by Go's actual old 20-gon and fixed S2 Cap covering.
     # Keep this table explicit: unverified coordinates must never silently PASS.
     _FIXTURES = (
-        ("kentland", 37.1853, -80.6140,
-         37.1925500000, -80.5598000000, 37.1974823562, -80.5549020408),
-        ("east10km", 37.1853, -80.6140 + 10000 / (111195 * 0.797),
-         37.1938000000, -80.4725617299, 37.1902924429, -80.4660090559),
-        ("south10km", 37.1853 - 10000 / 111195, -80.6140,
-         37.1026178987, -80.5582000000, 37.1026541287, -80.5660772463),
+        (
+            "kentland",
+            37.1853,
+            -80.6140,
+            37.1925500000,
+            -80.5598000000,
+            37.1974823562,
+            -80.5549020408,
+        ),
+        (
+            "east10km",
+            37.1853,
+            -80.6140 + 10000 / (111195 * 0.797),
+            37.1938000000,
+            -80.4725617299,
+            37.1902924429,
+            -80.4660090559,
+        ),
+        (
+            "south10km",
+            37.1853 - 10000 / 111195,
+            -80.6140,
+            37.1026178987,
+            -80.5582000000,
+            37.1026541287,
+            -80.5660772463,
+        ),
     )
 
     def _circles(self):
         bounds = self._planning_area.get_extents()
         for name, min_lat, min_lng, lat, lng, query_lat, query_lng in self._FIXTURES:
-            if abs(bounds.lat_min - min_lat) > 0.0001 or abs(bounds.lng_min - min_lng) > 0.0001:
+            if (
+                abs(bounds.lat_min - min_lat) > 0.0001
+                or abs(bounds.lng_min - min_lng) > 0.0001
+            ):
                 continue
             # The 1m query circle must remain within the registered 700m circle.
             primary = Circle.from_meters(lat, lng, 700)
