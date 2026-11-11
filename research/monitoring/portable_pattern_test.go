@@ -28,6 +28,9 @@ func TestFindPortableCirclePattern(t *testing.T) {
     type Pattern struct {latDelta,lngDelta float64; radius float64; fraction float64;mask int;bearings [5][]int}
     var best Pattern
     num:=0
+    maskCounts := make(map[int]int)
+    examples := make(map[int]Pattern)
+    unionMask := 0
     for _,radius:=range []float64{700,900,1100} {
       for i:=-8;i<=8;i++ {
        for j:=-15;j<=15;j++ {
@@ -61,16 +64,31 @@ func TestFindPortableCirclePattern(t *testing.T) {
                 if len(p.bearings[k])>0 {p.mask|=1<<k}
             }
             num++
-            if p.mask==31 {
-                fmt.Printf("PORTABLE_PATTERN lat_delta=%0.8f lng_delta=%0.8f radius=%0.0f fraction=%0.4f scanned=%d\n",p.latDelta,p.lngDelta,p.radius,p.fraction,num)
-                for k,a:=range areas {fmt.Printf("PORTABLE_BEARINGS area=%s angles=%v\n",a.name,p.bearings[k])}
-                return
+            if p.mask!=0 {
+                unionMask |= p.mask
+                maskCounts[p.mask]++
+                if _,ok:=examples[p.mask];!ok {examples[p.mask]=p}
             }
             if bits:=bitsSet(p.mask);bits>bitsSet(best.mask) {best=p}
          }
        }
       }
     }
-    t.Fatalf("No single portable pattern after %d variants; best mask=%05b, pattern=%+v",num,best.mask,best)
+    fmt.Printf("PORTABLE_UNION mask=%05b scanned=%d masks=%v best=%05b\\n",unionMask,num,maskCounts,best.mask)
+    uncovered:=unionMask
+    for uncovered!=0 {
+        var choice Pattern
+        gain:=0
+        for _,p:=range examples {
+            if n:=bitsSet(p.mask & uncovered);n>gain {gain=n;choice=p}
+        }
+        if gain==0 {break}
+        fmt.Printf("PORTABLE_CHOSEN lat_delta=%.8f lng_delta=%.8f radius=%.0f fraction=%.4f mask=%05b\\n",choice.latDelta,choice.lngDelta,choice.radius,choice.fraction,choice.mask)
+        for k,a:=range areas {
+            if len(choice.bearings[k])>0 {fmt.Printf("PORTABLE_HITS area=%s angles=%v\\n",a.name,choice.bearings[k])}
+        }
+        uncovered &^=choice.mask
+    }
+    if unionMask!=31 {t.Fatalf("No portable pattern ensemble covers all areas: mask=%05b",unionMask)}
 }
 func bitsSet(n int) int {c:=0;for n!=0 {c+=n&1;n>>=1};return c}
