@@ -67,12 +67,14 @@ class OIRCircleOverlap(TestScenario):
                 cells.add(
                     s2sphere.CellId.from_lat_lng(
                         s2sphere.LatLng.from_degrees(p_lat, p_lng)
-                    ).parent(13).id()
+                    )
+                    .parent(13)
+                    .id()
                 )
             cells.add(
-                s2sphere.CellId.from_lat_lng(
-                    s2sphere.LatLng.from_degrees(lat, lng)
-                ).parent(13).id()
+                s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lng))
+                .parent(13)
+                .id()
             )
             return cells
 
@@ -113,9 +115,7 @@ class OIRCircleOverlap(TestScenario):
                                 if cell_id not in cache:
                                     cell = s2sphere.Cell(s2sphere.CellId(cell_id))
                                     vertices = [
-                                        s2sphere.LatLng.from_point(
-                                            cell.get_vertex(k)
-                                        )
+                                        s2sphere.LatLng.from_point(cell.get_vertex(k))
                                         for k in range(4)
                                     ]
                                     cache[cell_id] = Polygon(
@@ -148,9 +148,7 @@ class OIRCircleOverlap(TestScenario):
                                 distant,
                                 Circle.from_meters(lat, lng, 200),
                             )
-        raise ValueError(
-            f"No robust S2 regression fixture fits planning area {bounds}"
-        )
+        raise ValueError(f"No robust S2 regression fixture fits planning area {bounds}")
 
     _dss: DSSInstance
 
