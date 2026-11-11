@@ -58,25 +58,18 @@ class OIRCircleOverlap(TestScenario):
         mid_lat = (bounds.lat_min + bounds.lat_max) / 2
         mid_lng = (bounds.lng_min + bounds.lng_max) / 2
 
-        # Use S2 cells for all 1m query positions, not just the center cell.
-        # Otherwise a nearby cell may make the old implementation pass.
+        # Use the exact S2 covering of the entire 1m query circle.
+        # Sampling the center/rim can miss neighboring cells.
+        coverer = s2sphere.RegionCoverer()
+        coverer.min_level = 13
+        coverer.max_level = 13
+
         def cells_of_circle(lat, lng):
-            cells = set()
-            for bearing in range(0, 360, 30):
-                p_lat, p_lng = self._point_at(lat, lng, 1, bearing)
-                cells.add(
-                    s2sphere.CellId.from_lat_lng(
-                        s2sphere.LatLng.from_degrees(p_lat, p_lng)
-                    )
-                    .parent(13)
-                    .id()
-                )
-            cells.add(
-                s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat, lng))
-                .parent(13)
-                .id()
+            axis = s2sphere.LatLng.from_degrees(lat, lng).to_point()
+            cap = s2sphere.Cap.from_axis_angle(
+                axis, s2sphere.Angle.from_radians(1 / self._EARTH_RADIUS_M)
             )
-            return cells
+            return {cell.id() for cell in coverer.get_covering(cap)}
 
         for i in range(-9, 10):
             for j in range(-12, 13):
