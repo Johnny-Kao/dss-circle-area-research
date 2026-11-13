@@ -16,6 +16,7 @@ jobs:
       matrix:
         variant: [old, fixed]
         area_region: [kentland, tokyo, zurich, helsinki, stanford]
+        area_shape: [rectangle, concave_l]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +101,33 @@ jobs:
           p.write_text(s[:a] + block + s[b:])
           print(f"Planning area fixture={label}, center=({target_lat}, {target_lng})")
           PY
+      - name: Create nonrectangular PlanningAreaResource fixture
+        if: matrix.area_shape == 'concave_l'
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          a = data.index("        planning_area_volume:\n")
+          b = data.index("        planning_area:\n", a)
+          section = data[a:b]
+          matches = re.findall(r"lat: (-?\d+\.\d+), lng: (-?\d+\.\d+)", section)
+          assert len(matches) == 4, matches
+          lats = [float(a) for a, _ in matches]
+          lngs = [float(b) for _, b in matches]
+          south, north = min(lats), max(lats)
+          west, east = min(lngs), max(lngs)
+          mid_lat = south + 0.55 * (north-south)
+          mid_lng = west + 0.55 * (east-west)
+          vertices = [(south,west),(south,east),(mid_lat,east),(mid_lat,mid_lng),(north,mid_lng),(north,west)]
+          vertex_lines = "\n".join(f"                - lat: {lat:.9f}\n                  lng: {lng:.9f}" for lat,lng in vertices)
+          first = section.index("            vertices:\n")
+          end = section.index("            altitude_lower:",first)
+          section = section[:first] + "            vertices:\n" + vertex_lines + "\n" + section[end:]
+          p.write_text(data[:a]+section+data[b:])
+          print("Concave L footprint (6 vertices) with unchanged geographic bounds")
+          PY
       - name: Verify real DSS API Red/Green (no infrastructure false positives)
         working-directory: monitoring
         env:
@@ -113,7 +141,7 @@ jobs:
           make -C monitoring/uss_qualifier test > /tmp/old-red.log 2>&1
           status=$?
           set -e
-          echo "variant=$VARIANT area_region=${{ matrix.area_region }} qualifier_exit=$status"
+          echo "variant=$VARIANT area_region=${{ matrix.area_region }} area_shape=${{ matrix.area_shape }} qualifier_exit=$status"
           tail -100 /tmp/old-red.log
           if grep -q "Execution error in scenario" /tmp/old-red.log; then
             echo "FAIL: scenario execution error, not a meaningful regression signal"
@@ -132,7 +160,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pr1911-review-${{ matrix.variant }}-region-${{ matrix.area_region }}-api-reports
+          name: pr1911-review-${{ matrix.variant }}-region-${{ matrix.area_region }}-${{ matrix.area_shape }}-api-reports
           path: |
             /tmp/old-red.log
             monitoring/monitoring/uss_qualifier/output
