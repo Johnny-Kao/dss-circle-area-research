@@ -1,0 +1,108 @@
+name: PR 1911 review S2 real DSS red green
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-review-revision']
+    paths:
+      - 'research/monitoring/oir_circle_overlap_review.py'
+      - '.github/workflows/pr1911-review-red-green.yml'
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-26.04
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [old, fixed]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: actions/checkout@v4
+        if: matrix.variant == 'fixed'
+        with:
+          repository: Johnny-Kao/dss
+          ref: staging/pr-1914-review-final
+          path: fixed-dss
+      - name: Build fixed DSS image
+        if: matrix.variant == 'fixed'
+        run: docker build --tag local/dss:pr1914-fixed fixed-dss
+      - name: Stage isolated OIR circle scenario and targeted suite
+        run: |
+          cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py")
+          p.write_text(p.read_text() + "from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n")
+          ids=Path("monitoring/monitoring/monitorlib/ids.py")
+          ids.write_text(ids.read_text().replace("# Next code: 406","# Next code: 408",1))
+          p=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_circle_overlap.yaml")
+          p.write_text("""name: DSS circular overlap regression
+          resources:
+            dss: resources.astm.f3548.v21.DSSInstanceResource
+            id_generator: resources.interuss.IDGeneratorResource
+            planning_area: resources.PlanningAreaResource
+          actions:
+            - test_scenario:
+                scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap
+                resources:
+                  dss: dss
+                  id_generator: id_generator
+                  planning_area: planning_area
+          """)
+          config=Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          original=config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1)
+          original=original.replace("          id_generator: id_generator\n", "          id_generator: id_generator\n          planning_area: planning_area\n", 1)
+          assert "  validation:\n" in original
+          original=original.split("  validation:\n",1)[0]
+          original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
+          config.write_text(original)
+          PY
+      - name: Verify real DSS API Red/Green (no infrastructure false positives)
+        working-directory: monitoring
+        env:
+          CONFIG_NAME: configurations.dev.f3548_self_contained
+          CI: 'true'
+          DSS_IMAGE: ${{ matrix.variant == 'old' && 'interuss/dss:v0.23.0' || 'local/dss:pr1914-fixed' }}
+          VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          set +e
+          make -C monitoring/uss_qualifier test > /tmp/old-red.log 2>&1
+          status=$?
+          set -e
+          echo "variant=$VARIANT qualifier_exit=$status"
+          tail -100 /tmp/old-red.log
+          if grep -q "Execution error in scenario" /tmp/old-red.log; then
+            echo "FAIL: scenario execution error, not a meaningful regression signal"
+            exit 1
+          fi
+          if [ "$VARIANT" = old ]; then
+            test "$status" -ne 0
+            grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "RED CONFIRMED: old DSS missed overlapping OIR"
+          else
+            test "$status" -eq 0
+            ! grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "GREEN CONFIRMED: fixed DSS returned overlapping OIR"
+          fi
+      - name: Save reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr1911-review-${{ matrix.variant }}-api-reports
+          path: |
+            /tmp/old-red.log
+            monitoring/monitoring/uss_qualifier/output
+            monitoring/logs
+            monitoring/monitoring/mock_uss/output
+          if-no-files-found: ignore
