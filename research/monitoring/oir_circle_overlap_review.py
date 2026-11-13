@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 from math import cos, pi, sin
 
 import s2sphere
+from shapely.geometry import Point, Polygon
 
 from uas_standards.astm.f3548.v21.api import (
     OperationalIntentState,
@@ -12,7 +13,7 @@ from uas_standards.astm.f3548.v21.api import (
 from uas_standards.astm.f3548.v21.constants import Scope
 
 from monitoring.monitorlib.fetch import QueryError
-from monitoring.monitorlib.geo import Circle
+from monitoring.monitorlib.geo import Circle, flatten
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.monitorlib.ids import register_resource_type
 from monitoring.monitorlib.testing import make_fake_url
@@ -98,8 +99,39 @@ class OIRCircleOverlap(TestScenario):
                 cells[cid.id()] = cid
         return [cells[k] for k in sorted(cells)]
 
+    @classmethod
+    def _circle_inside_volume(cls, center, radius, volume, reference):
+        # Use the true planning area footprint, not only its bounding box.
+        if volume.outline_circle is not None:
+            outline = volume.outline_circle
+            if outline.radius.units != "M":
+                raise ValueError("Planning area circle radius must use meters")
+            source = s2sphere.LatLng.from_degrees(
+                outline.center.lat, outline.center.lng
+            ).to_point()
+            return (
+                source.angle(center) * cls._EARTH_RADIUS_M + radius + 1.0
+                < outline.radius.value
+            )
+        if volume.outline_polygon is None:
+            raise ValueError("Planning area needs a polygon or circle footprint")
+        polygon = Polygon(
+            flatten(reference, vertex.as_s2sphere())
+            for vertex in volume.outline_polygon.vertices
+        )
+        if not polygon.is_valid or polygon.is_empty:
+            raise ValueError("Planning area polygon is invalid")
+        center_xy = flatten(reference, s2sphere.LatLng.from_point(center))
+        # Erosion checks the entire circular footprint at concave corners.
+        return polygon.buffer(-(radius + 1.0)).covers(Point(*center_xy))
+
     def _circles(self):
         bounds = self._planning_area.get_extents()
+        volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
+        reference = s2sphere.LatLng.from_degrees(
+            (bounds.lat_min + bounds.lat_max) / 2,
+            (bounds.lng_min + bounds.lng_max) / 2,
+        )
         for cid in self._candidate_cells(bounds):
             cell = s2sphere.Cell(cid)
             neighbors = set(cid.get_edge_neighbors())
@@ -125,6 +157,10 @@ class OIRCircleOverlap(TestScenario):
                         if primary.angle(query)*self._EARTH_RADIUS_M >= radius+self._QUERY_RADIUS_M:
                             continue
                         if not self._circle_inside_bounds(primary,radius,bounds) or not self._circle_inside_bounds(query,self._QUERY_RADIUS_M,bounds):
+                            continue
+                        if not self._circle_inside_volume(primary,radius,volume,reference):
+                            continue
+                        if not self._circle_inside_volume(query,self._QUERY_RADIUS_M,volume,reference):
                             continue
                         plat,plng=self._point_to_lat_lng(primary)
                         qlat,qlng=self._point_to_lat_lng(query)
