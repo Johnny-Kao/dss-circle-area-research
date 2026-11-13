@@ -23,8 +23,8 @@ The ZIP implements a candidate-cell discovery process using level-13 S2 cell edg
 
 - Extracted and inspected ZIP source and supporting tests.
 - Ran the standalone `test_geometry.py`: **PASS** for its five synthetic example bounding boxes (Kentland, Stanford, Tokyo, Zurich and Helsinki).
-- Ran ZIP's `validate_revision.py` directly after extraction: **FAIL** (hard-coded path `/mnt/data/pr1911_revision/...` does not exist in a fresh extraction). This is a harness portability defect, not evidence that the production scenario fails.
-- No full Monitoring checkout/dependencies or DSS service available in this sandbox. No genuine end-to-end Red/Green or integration result is established for this ZIP.
+- Ran ZIP's `validate_revision.py` directly after extraction: **FAIL** because it hard-codes `/mnt/data/pr1911_revision/...`. Replacing that path with a path relative to `__file__` made the validation **PASS**. The shipped harness still requires that portability fix.
+- Python `py_compile` of the replacement scenario **PASS** in this session. No full Monitoring checkout/dependencies or DSS service available in this sandbox. No genuine end-to-end Red/Green or integration result is established for this ZIP.
 - Independent harness reimplements S2 geometry rather than importing production `s2sphere`, so agreement with actual cell selection/coverer still needs verification.
 
 ## Remaining validation gates
