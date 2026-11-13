@@ -112,7 +112,7 @@ jobs:
           a = data.index("        planning_area_volume:\n")
           b = data.index("        planning_area:\n", a)
           section = data[a:b]
-          matches = re.findall(r"lat: (-?\d+\.\d+), lng: (-?\d+\.\d+)", section)
+          matches = re.findall(r"- lat: (-?\d+\.\d+)\s+lng: (-?\d+\.\d+)", section)
           assert len(matches) == 4, matches
           lats = [float(a) for a, _ in matches]
           lngs = [float(b) for _, b in matches]
@@ -121,10 +121,10 @@ jobs:
           mid_lat = south + 0.55 * (north-south)
           mid_lng = west + 0.55 * (east-west)
           vertices = [(south,west),(south,east),(mid_lat,east),(mid_lat,mid_lng),(north,mid_lng),(north,west)]
-          vertex_lines = "\n".join(f"                - lat: {lat:.9f}\n                  lng: {lng:.9f}" for lat,lng in vertices)
-          first = section.index("            vertices:\n")
-          end = section.index("            altitude_lower:",first)
-          section = section[:first] + "            vertices:\n" + vertex_lines + "\n" + section[end:]
+          vertex_lines = "\n".join(f"                  - lat: {lat:.9f}\n                    lng: {lng:.9f}" for lat,lng in vertices)
+          first = section.index("                vertices:\n")
+          end = section.index("              altitude_lower:",first)
+          section = section[:first] + "                vertices:\n" + vertex_lines + "\n" + section[end:]
           p.write_text(data[:a]+section+data[b:])
           print("Concave L footprint (6 vertices) with unchanged geographic bounds")
           PY
