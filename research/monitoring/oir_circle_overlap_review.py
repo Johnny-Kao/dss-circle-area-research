@@ -168,8 +168,8 @@ class OIRCircleOverlap(TestScenario):
             scenario=self,dss=self._dss,oir_id=self._oir_id,oir_params=params
         )
         self.end_test_step()
-        self._check_step("Boundary overlap discovers OIR",boundary,start,end)
-        self._check_step("Ordinary contained circle discovers OIR",inside,start,end)
+        self._check_step("Boundary overlap is discoverable",boundary,start,end)
+        self._check_step("Ordinary contained circle is discoverable",inside,start,end)
         self.begin_test_step("Delete large circular OIR")
         oir_fragments.delete_oir_query(scenario=self,dss=self._dss,oir_id=self._oir_id,ovn=self._created_oir.ovn)
         self._created_oir=None
