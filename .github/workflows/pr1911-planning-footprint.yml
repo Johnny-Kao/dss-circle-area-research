@@ -38,4 +38,6 @@ jobs:
         run: uv sync --locked --no-install-project --group dev
       - name: Actual footprint unit regressions
         working-directory: monitoring
+        env:
+          PYTHONPATH: .
         run: uv run --no-sync python ../research/research/monitoring/test_planning_footprint.py
