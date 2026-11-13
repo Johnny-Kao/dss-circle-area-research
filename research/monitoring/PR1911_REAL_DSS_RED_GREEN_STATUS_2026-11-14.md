@@ -13,7 +13,7 @@
 
 Action run [43490250692](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43490250692) was triggered by the workflow commit. Both matrix jobs (`integration (old)` and `integration (fixed)`) concluded **failure**, but the GitHub connector returned empty job steps and job log retrieval failed with GitHub's `BlobNotFound` (HTTP 404). Thus there is **no evidence that either DSS server ran or that the scenario reached the API**. Treat this as CI execution/instrumentation blocked, **not** a legitimate Red/Green result.
 
-The original workflow specified `ubuntu-26.04`, which was changed to `ubuntu-24.04` in commit `495686b9` to remove one potential runner compatibility issue. The revised workflow's run/result must still be checked; do not infer success.
+The original workflow specified `ubuntu-26.04`, which was changed to `ubuntu-24.04` in commit `495686b9` to remove one potential runner compatibility issue. Follow-up run [43490389467](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43490389467) on `ubuntu-24.04` also concluded failure for **both jobs**, again with `steps: null` / no accessible execution details through the connector. Switching runner versions did not unblock CI; the cause is not yet established. Do not infer success.
 
 ## Mandatory remaining steps
 
