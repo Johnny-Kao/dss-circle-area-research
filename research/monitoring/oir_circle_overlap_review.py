@@ -4,14 +4,6 @@ from datetime import UTC, datetime, timedelta
 from math import cos, pi, sin
 
 import s2sphere
-from shapely.geometry import Point, Polygon
-
-from uas_standards.astm.f3548.v21.api import (
-    OperationalIntentState,
-    PutOperationalIntentReferenceParameters,
-)
-from uas_standards.astm.f3548.v21.constants import Scope
-
 from monitoring.monitorlib.fetch import QueryError
 from monitoring.monitorlib.geo import Circle, flatten
 from monitoring.monitorlib.geotemporal import Volume4D
@@ -29,6 +21,12 @@ from monitoring.uss_qualifier.scenarios.astm.utm.dss.fragments.oir import (
 )
 from monitoring.uss_qualifier.scenarios.scenario import TestScenario
 from monitoring.uss_qualifier.suites.suite import ExecutionContext
+from shapely.geometry import Point, Polygon
+from uas_standards.astm.f3548.v21.api import (
+    OperationalIntentState,
+    PutOperationalIntentReferenceParameters,
+)
+from uas_standards.astm.f3548.v21.constants import Scope
 
 
 class TestAreaNotApplicable(Exception):
@@ -42,14 +40,18 @@ class OIRCircleOverlap(TestScenario):
         407, "Circle overlap operational intent reference"
     )
 
-
     _EARTH_RADIUS_M = 6371010.0
     _S2_CELL_LEVEL = 13
     _QUERY_RADIUS_M = 1.0
     _INSIDE_QUERY_RADIUS_M = 50.0
     _DEFAULT_ALTITUDES_M = (30.0, 120.0)
     _LEGACY_POLYGON_VERTICES = 20
-    _CIRCLE_CONFIGURATIONS = ((200.0, 0.75, 1.25), (150.0, 0.50, 1.20), (100.0, 0.25, 1.10), (80.0, 0.10, 1.05))
+    _CIRCLE_CONFIGURATIONS = (
+        (200.0, 0.75, 1.25),
+        (150.0, 0.50, 1.20),
+        (100.0, 0.25, 1.10),
+        (80.0, 0.10, 1.05),
+    )
     _EDGE_FRACTIONS = tuple(i / 10 for i in range(1, 10))
     _AREA_SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
@@ -68,14 +70,24 @@ class OIRCircleOverlap(TestScenario):
         angle = a.angle(b)
         if angle == 0:
             return a
-        return (a * (sin((1-fraction)*angle)/sin(angle)) + b * (sin(fraction*angle)/sin(angle))).normalize()
+        return (
+            a * (sin((1 - fraction) * angle) / sin(angle))
+            + b * (sin(fraction * angle) / sin(angle))
+        ).normalize()
 
     @classmethod
     def _ring_points(cls, center, radius_m, count=24):
         y_axis = s2sphere.ortho(center)
         x_axis = y_axis.cross_prod(center).normalize()
         angle = radius_m / cls._EARTH_RADIUS_M
-        return [(x_axis * (sin(angle)*cos(2*pi*i/count)) + y_axis * (sin(angle)*sin(2*pi*i/count)) + center * cos(angle)).normalize() for i in range(count)]
+        return [
+            (
+                x_axis * (sin(angle) * cos(2 * pi * i / count))
+                + y_axis * (sin(angle) * sin(2 * pi * i / count))
+                + center * cos(angle)
+            ).normalize()
+            for i in range(count)
+        ]
 
     @classmethod
     def _legacy_vertices(cls, center, radius_m):
@@ -83,24 +95,33 @@ class OIRCircleOverlap(TestScenario):
 
     @classmethod
     def _cell_id(cls, point):
-        return s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_point(point)).parent(cls._S2_CELL_LEVEL)
+        return s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_point(point)).parent(
+            cls._S2_CELL_LEVEL
+        )
 
     @classmethod
     def _inside_bounds(cls, point, bounds):
         lat, lng = cls._point_to_lat_lng(point)
-        return bounds.lat_min < lat < bounds.lat_max and bounds.lng_min < lng < bounds.lng_max
+        return (
+            bounds.lat_min < lat < bounds.lat_max
+            and bounds.lng_min < lng < bounds.lng_max
+        )
 
     @classmethod
     def _circle_inside_bounds(cls, center, radius, bounds):
-        return cls._inside_bounds(center, bounds) and all(cls._inside_bounds(p, bounds) for p in cls._ring_points(center, radius))
+        return cls._inside_bounds(center, bounds) and all(
+            cls._inside_bounds(p, bounds) for p in cls._ring_points(center, radius)
+        )
 
     def _candidate_cells(self, bounds):
         cells = {}
         for a in self._AREA_SAMPLE_FRACTIONS:
             for b in self._AREA_SAMPLE_FRACTIONS:
-                lat = bounds.lat_min + (bounds.lat_max-bounds.lat_min)*a
-                lng = bounds.lng_min + (bounds.lng_max-bounds.lng_min)*b
-                cid = s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_degrees(lat,lng)).parent(self._S2_CELL_LEVEL)
+                lat = bounds.lat_min + (bounds.lat_max - bounds.lat_min) * a
+                lng = bounds.lng_min + (bounds.lng_max - bounds.lng_min) * b
+                cid = s2sphere.CellId.from_lat_lng(
+                    s2sphere.LatLng.from_degrees(lat, lng)
+                ).parent(self._S2_CELL_LEVEL)
                 cells[cid.id()] = cid
         return [cells[k] for k in sorted(cells)]
 
@@ -132,16 +153,26 @@ class OIRCircleOverlap(TestScenario):
 
     @classmethod
     def _altitudes(cls, volume):
-        if volume.altitude_lower is None:
-            low = cls._DEFAULT_ALTITUDES_M[0]
-        else:
-            low = volume.altitude_lower_wgs84_m()
-        if volume.altitude_upper is None:
-            high = cls._DEFAULT_ALTITUDES_M[1]
-        else:
-            high = volume.altitude_upper_wgs84_m()
+        low = (
+            volume.altitude_lower_wgs84_m()
+            if volume.altitude_lower is not None
+            else None
+        )
+        high = (
+            volume.altitude_upper_wgs84_m()
+            if volume.altitude_upper is not None
+            else None
+        )
+        if low is None and high is None:
+            low, high = cls._DEFAULT_ALTITUDES_M
+        elif low is None:
+            low = high - (cls._DEFAULT_ALTITUDES_M[1] - cls._DEFAULT_ALTITUDES_M[0])
+        elif high is None:
+            high = low + (cls._DEFAULT_ALTITUDES_M[1] - cls._DEFAULT_ALTITUDES_M[0])
         if high <= low:
-            raise TestAreaNotApplicable("Planning Area must have a positive altitude range")
+            raise TestAreaNotApplicable(
+                "Planning Area must have a positive altitude range"
+            )
         return low + (high - low) * 0.25, high - (high - low) * 0.25
 
     def _circles(self):
@@ -155,36 +186,59 @@ class OIRCircleOverlap(TestScenario):
             cell = s2sphere.Cell(cid)
             neighbors = set(cid.get_edge_neighbors())
             for edge in range(4):
-                a, b = cell.get_vertex(edge), cell.get_vertex((edge+1)%4)
+                a, b = cell.get_vertex(edge), cell.get_vertex((edge + 1) % 4)
                 inward = a.cross_prod(b).normalize()
                 if inward.dot_prod(cell.get_center()) < 0:
                     inward = -inward
                 for radius, crossing, offset in self._CIRCLE_CONFIGURATIONS:
                     for fraction in self._EDGE_FRACTIONS:
-                        boundary = self._interpolate_edge(a,b,fraction)
-                        primary = self._move_point(boundary,inward,radius-crossing)
-                        query = self._move_point(boundary,-inward,offset)
+                        boundary = self._interpolate_edge(a, b, fraction)
+                        primary = self._move_point(boundary, inward, radius - crossing)
+                        query = self._move_point(boundary, -inward, offset)
                         if self._cell_id(primary) != cid:
                             continue
                         query_cell = self._cell_id(query)
                         if query_cell not in neighbors:
                             continue
-                        if not all(self._cell_id(p) == query_cell for p in self._ring_points(query,self._QUERY_RADIUS_M)):
+                        if not all(
+                            self._cell_id(p) == query_cell
+                            for p in self._ring_points(query, self._QUERY_RADIUS_M)
+                        ):
                             continue
-                        if not all(cell.contains(v) for v in self._legacy_vertices(primary,radius)):
+                        if not all(
+                            cell.contains(v)
+                            for v in self._legacy_vertices(primary, radius)
+                        ):
                             continue
-                        if primary.angle(query)*self._EARTH_RADIUS_M >= radius+self._QUERY_RADIUS_M:
+                        if (
+                            primary.angle(query) * self._EARTH_RADIUS_M
+                            >= radius + self._QUERY_RADIUS_M
+                        ):
                             continue
-                        if not self._circle_inside_bounds(primary,radius,bounds) or not self._circle_inside_bounds(query,self._QUERY_RADIUS_M,bounds):
+                        if not self._circle_inside_bounds(
+                            primary, radius, bounds
+                        ) or not self._circle_inside_bounds(
+                            query, self._QUERY_RADIUS_M, bounds
+                        ):
                             continue
-                        if not self._circle_inside_volume(primary,radius,volume,reference):
+                        if not self._circle_inside_volume(
+                            primary, radius, volume, reference
+                        ):
                             continue
-                        if not self._circle_inside_volume(query,self._QUERY_RADIUS_M,volume,reference):
+                        if not self._circle_inside_volume(
+                            query, self._QUERY_RADIUS_M, volume, reference
+                        ):
                             continue
-                        plat,plng=self._point_to_lat_lng(primary)
-                        qlat,qlng=self._point_to_lat_lng(query)
-                        return (Circle.from_meters(plat,plng,radius),Circle.from_meters(qlat,qlng,self._QUERY_RADIUS_M),Circle.from_meters(plat,plng,self._INSIDE_QUERY_RADIUS_M))
-        raise TestAreaNotApplicable(f"Cannot construct valid S2 boundary fixture in Planning Area: {bounds}")
+                        plat, plng = self._point_to_lat_lng(primary)
+                        qlat, qlng = self._point_to_lat_lng(query)
+                        return (
+                            Circle.from_meters(plat, plng, radius),
+                            Circle.from_meters(qlat, qlng, self._QUERY_RADIUS_M),
+                            Circle.from_meters(plat, plng, self._INSIDE_QUERY_RADIUS_M),
+                        )
+        raise TestAreaNotApplicable(
+            f"Cannot construct valid S2 boundary fixture in Planning Area: {bounds}"
+        )
 
     _dss: DSSInstance
 
@@ -225,18 +279,31 @@ class OIRCircleOverlap(TestScenario):
         end = start + timedelta(minutes=60)
         self.begin_test_step("Create large circular OIR")
         params = PutOperationalIntentReferenceParameters(
-            extents=[Volume4D.from_values(t0=start,t1=end,alt0=alt0,alt1=alt1,circle=primary).to_f3548v21()],
-            key=[],state=OperationalIntentState.Accepted,uss_base_url=make_fake_url(),subscription_id=None,
+            extents=[
+                Volume4D.from_values(
+                    t0=start, t1=end, alt0=alt0, alt1=alt1, circle=primary
+                ).to_f3548v21()
+            ],
+            key=[],
+            state=OperationalIntentState.Accepted,
+            uss_base_url=make_fake_url(),
+            subscription_id=None,
         )
         self._created_oir, _, _ = oir_fragments.create_oir_query(
-            scenario=self,dss=self._dss,oir_id=self._oir_id,oir_params=params
+            scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
         )
         self.end_test_step()
-        self._check_step("Boundary overlap is discoverable",boundary,start,end,alt0,alt1)
-        self._check_step("Ordinary contained circle is discoverable",inside,start,end,alt0,alt1)
+        self._check_step(
+            "Boundary overlap is discoverable", boundary, start, end, alt0, alt1
+        )
+        self._check_step(
+            "Ordinary contained circle is discoverable", inside, start, end, alt0, alt1
+        )
         self.begin_test_step("Delete large circular OIR")
-        oir_fragments.delete_oir_query(scenario=self,dss=self._dss,oir_id=self._oir_id,ovn=self._created_oir.ovn)
-        self._created_oir=None
+        oir_fragments.delete_oir_query(
+            scenario=self, dss=self._dss, oir_id=self._oir_id, ovn=self._created_oir.ovn
+        )
+        self._created_oir = None
         self.end_test_step()
         self.end_test_case()
         self.end_test_scenario()

@@ -147,6 +147,14 @@ jobs:
             echo "FAIL: scenario execution error, not a meaningful regression signal"
             exit 1
           fi
+          if grep -q "Note: test_inapplicable" /tmp/old-red.log; then
+            echo "FAIL: Planning Area is not applicable; no DSS conclusion"
+            exit 1
+          fi
+          if ! grep -q "Note: fixture_constructed" /tmp/old-red.log; then
+            echo "FAIL: no evidence of valid boundary fixture"
+            exit 1
+          fi
           if [ "$VARIANT" = old ]; then
             test "$status" -ne 0
             grep -q "Overlapping OIR was missing" /tmp/old-red.log

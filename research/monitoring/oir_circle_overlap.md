@@ -12,9 +12,16 @@ opposite side of a nearby spatial indexing boundary. It also searches with a
 smaller circle contained inside the OIR. Both searches must discover the OIR
 when their altitude and time intervals overlap.
 
-The planning area must provide sufficient room to accommodate the circles.
-The scenario derives the locations from the supplied planning area; no fixed
-geographic coordinates are required.
+The planning area must provide sufficient room to accommodate the circles
+and a positive altitude interval in W84 meters. The scenario selects an
+altitude interval strictly inside the supplied limits (using a 90 m span
+when one or both limits are absent). The locations are derived from the
+supplied planning area; no fixed geographic coordinates are required.
+
+If the planning area does not support an S2 boundary fixture, or uses an
+unsupported altitude reference, the scenario records a test-inapplicable
+note and makes no DSS conformance assertion. Such a run must not count as
+a passing Red/Green regression.
 
 ## Resources
 

@@ -1,11 +1,12 @@
 """Unit regressions for actual PlanningAreaResource footprint containment."""
+
 import unittest
 
 import s2sphere
-
-from monitoring.monitorlib.geo import Circle, LatLngPoint, Polygon, Volume3D
+from monitoring.monitorlib.geo import Altitude, Circle, LatLngPoint, Polygon, Volume3D
 from monitoring.uss_qualifier.scenarios.astm.utm.dss.oir_circle_overlap import (
     OIRCircleOverlap,
+    TestAreaNotApplicable,
 )
 
 
@@ -52,6 +53,34 @@ class PlanningFootprintTest(unittest.TestCase):
         area = Volume3D(outline_circle=Circle.from_meters(35.68, 139.75, 400))
         self.assertTrue(self.inside(35.68, 139.75, 50, area))
         self.assertFalse(self.inside(35.683, 139.75, 100, area))
+
+    def test_altitudes_stay_within_planning_area(self):
+        area = Volume3D(
+            altitude_lower=Altitude.w84m(500),
+            altitude_upper=Altitude.w84m(700),
+        )
+        self.assertEqual(OIRCircleOverlap._altitudes(area), (550, 650))
+
+    def test_altitudes_allow_narrow_positive_ranges(self):
+        area = Volume3D(
+            altitude_lower=Altitude.w84m(100),
+            altitude_upper=Altitude.w84m(100.5),
+        )
+        self.assertEqual(OIRCircleOverlap._altitudes(area), (100.125, 100.375))
+
+    def test_one_sided_altitude_bound(self):
+        lower_only = Volume3D(altitude_lower=Altitude.w84m(500))
+        upper_only = Volume3D(altitude_upper=Altitude.w84m(700))
+        self.assertEqual(OIRCircleOverlap._altitudes(lower_only), (522.5, 567.5))
+        self.assertEqual(OIRCircleOverlap._altitudes(upper_only), (632.5, 677.5))
+
+    def test_inapplicable_zero_altitude_span(self):
+        area = Volume3D(
+            altitude_lower=Altitude.w84m(100),
+            altitude_upper=Altitude.w84m(100),
+        )
+        with self.assertRaises(TestAreaNotApplicable):
+            OIRCircleOverlap._altitudes(area)
 
 
 if __name__ == "__main__":
