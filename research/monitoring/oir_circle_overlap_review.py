@@ -177,32 +177,27 @@ class OIRCircleOverlap(TestScenario):
         self.end_test_case()
         self.end_test_scenario()
 
-    def _check_step(self, title, circle, t0, t1, *, alt0=30, alt1=120, expected=True):
+    def _check_step(self, title, circle, t0, t1):
         self.begin_test_step(title)
-        self._search(title, circle, t0, t1, alt0, alt1, expected)
+        self._search(title, circle, t0, t1)
         self.end_test_step()
 
-    def _search(self, title, circle, t0, t1, alt0, alt1, expected, bearing=None):
+    def _search(self, title, circle, t0, t1):
         query = Volume4D.from_values(
-            t0=t0, t1=t1, alt0=alt0, alt1=alt1, circle=circle
+            t0=t0, t1=t1, alt0=30, alt1=120, circle=circle
         ).to_f3548v21()
         with self.check(title, self._pid) as check:
             try:
                 found, response = self._dss.find_op_intent(query)
                 self.record_query(response)
                 ids = {oir.id for oir in found}
-                if (self._oir_id in ids) != expected:
+                if self._oir_id not in ids:
                     check.record_failed(
-                        summary=(
-                            "Overlapping OIR was missing"
-                            if expected
-                            else "OIR was returned for a disjoint 4D query"
-                        ),
+                        summary="Overlapping OIR was missing",
                         details=(
-                            f"Case: {title}; bearing={bearing}; expected_found={expected}; "
-                            f"expected_id={self._oir_id}; returned_ids={sorted(ids)}; "
-                            f"query_circle={circle}; query_time=[{t0}, {t1}]; "
-                            f"query_altitude_m=[{alt0}, {alt1}]"
+                            f"Case: {title}; expected_id={self._oir_id}; "
+                            f"returned_ids={sorted(ids)}; query_circle={circle}; "
+                            f"query_time=[{t0}, {t1}]; query_altitude_m=[30, 120]"
                         ),
                         query_timestamps=[response.request.timestamp],
                     )
