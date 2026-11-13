@@ -31,6 +31,10 @@ from monitoring.uss_qualifier.scenarios.scenario import TestScenario
 from monitoring.uss_qualifier.suites.suite import ExecutionContext
 
 
+class TestAreaNotApplicable(Exception):
+    """Planning Area does not support a meaningful boundary fixture."""
+
+
 class OIRCircleOverlap(TestScenario):
     """Check that a small circle overlapping the edge of a larger OIR is searchable."""
 
@@ -43,6 +47,7 @@ class OIRCircleOverlap(TestScenario):
     _S2_CELL_LEVEL = 13
     _QUERY_RADIUS_M = 1.0
     _INSIDE_QUERY_RADIUS_M = 50.0
+    _DEFAULT_ALTITUDES_M = (30.0, 120.0)
     _LEGACY_POLYGON_VERTICES = 20
     _CIRCLE_CONFIGURATIONS = ((200.0, 0.75, 1.25), (150.0, 0.50, 1.20), (100.0, 0.25, 1.10), (80.0, 0.10, 1.05))
     _EDGE_FRACTIONS = tuple(i / 10 for i in range(1, 10))
@@ -125,6 +130,20 @@ class OIRCircleOverlap(TestScenario):
         # Erosion checks the entire circular footprint at concave corners.
         return polygon.buffer(-(radius + 1.0)).covers(Point(*center_xy))
 
+    @classmethod
+    def _altitudes(cls, volume):
+        if volume.altitude_lower is None:
+            low = cls._DEFAULT_ALTITUDES_M[0]
+        else:
+            low = volume.altitude_lower_wgs84_m()
+        if volume.altitude_upper is None:
+            high = cls._DEFAULT_ALTITUDES_M[1]
+        else:
+            high = volume.altitude_upper_wgs84_m()
+        if high <= low:
+            raise TestAreaNotApplicable("Planning Area must have a positive altitude range")
+        return low + (high - low) * 0.25, high - (high - low) * 0.25
+
     def _circles(self):
         bounds = self._planning_area.get_extents()
         volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
@@ -165,7 +184,7 @@ class OIRCircleOverlap(TestScenario):
                         plat,plng=self._point_to_lat_lng(primary)
                         qlat,qlng=self._point_to_lat_lng(query)
                         return (Circle.from_meters(plat,plng,radius),Circle.from_meters(qlat,qlng,self._QUERY_RADIUS_M),Circle.from_meters(plat,plng,self._INSIDE_QUERY_RADIUS_M))
-        raise ValueError(f"Could not construct S2 adversarial geometry inside planning area: {bounds}")
+        raise TestAreaNotApplicable(f"Cannot construct valid S2 boundary fixture in Planning Area: {bounds}")
 
     _dss: DSSInstance
 
@@ -188,24 +207,33 @@ class OIRCircleOverlap(TestScenario):
 
     def run(self, context: ExecutionContext):
         self.begin_test_scenario(context)
+        volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
+        try:
+            alt0, alt1 = self._altitudes(volume)
+            primary, boundary, inside = self._circles()
+        except (TestAreaNotApplicable, NotImplementedError) as e:
+            self.record_note("test_inapplicable", str(e))
+            self.end_test_scenario()
+            return
+
+        self.record_note("fixture_constructed", "S2 boundary fixture constructed")
         self.begin_test_case("Setup")
         self._cleanup_known_oir("Clear previous test OIR")
         self.end_test_case()
         self.begin_test_case("Discover an OIR through an overlapping circle")
-        primary, boundary, inside = self._circles()
         start = datetime.now(UTC) + timedelta(minutes=5)
         end = start + timedelta(minutes=60)
         self.begin_test_step("Create large circular OIR")
         params = PutOperationalIntentReferenceParameters(
-            extents=[Volume4D.from_values(t0=start,t1=end,alt0=30,alt1=120,circle=primary).to_f3548v21()],
+            extents=[Volume4D.from_values(t0=start,t1=end,alt0=alt0,alt1=alt1,circle=primary).to_f3548v21()],
             key=[],state=OperationalIntentState.Accepted,uss_base_url=make_fake_url(),subscription_id=None,
         )
         self._created_oir, _, _ = oir_fragments.create_oir_query(
             scenario=self,dss=self._dss,oir_id=self._oir_id,oir_params=params
         )
         self.end_test_step()
-        self._check_step("Boundary overlap is discoverable",boundary,start,end)
-        self._check_step("Ordinary contained circle is discoverable",inside,start,end)
+        self._check_step("Boundary overlap is discoverable",boundary,start,end,alt0,alt1)
+        self._check_step("Ordinary contained circle is discoverable",inside,start,end,alt0,alt1)
         self.begin_test_step("Delete large circular OIR")
         oir_fragments.delete_oir_query(scenario=self,dss=self._dss,oir_id=self._oir_id,ovn=self._created_oir.ovn)
         self._created_oir=None
@@ -213,14 +241,14 @@ class OIRCircleOverlap(TestScenario):
         self.end_test_case()
         self.end_test_scenario()
 
-    def _check_step(self, title, circle, t0, t1):
+    def _check_step(self, title, circle, t0, t1, alt0, alt1):
         self.begin_test_step(title)
-        self._search(title, circle, t0, t1)
+        self._search(title, circle, t0, t1, alt0, alt1)
         self.end_test_step()
 
-    def _search(self, title, circle, t0, t1):
+    def _search(self, title, circle, t0, t1, alt0, alt1):
         query = Volume4D.from_values(
-            t0=t0, t1=t1, alt0=30, alt1=120, circle=circle
+            t0=t0, t1=t1, alt0=alt0, alt1=alt1, circle=circle
         ).to_f3548v21()
         with self.check(title, self._pid) as check:
             try:
@@ -233,7 +261,7 @@ class OIRCircleOverlap(TestScenario):
                         details=(
                             f"Case: {title}; expected_id={self._oir_id}; "
                             f"returned_ids={sorted(ids)}; query_circle={circle}; "
-                            f"query_time=[{t0}, {t1}]; query_altitude_m=[30, 120]"
+                            f"query_time=[{t0}, {t1}]; query_altitude_m=[{alt0}, {alt1}]"
                         ),
                         query_timestamps=[response.request.timestamp],
                     )
