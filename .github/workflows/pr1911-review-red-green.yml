@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         variant: [old, fixed]
-        area_offset: [0, 1, 2, 3, 4]
+        area_region: [kentland, tokyo, zurich, helsinki, stanford]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -68,9 +68,9 @@ jobs:
           original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
           config.write_text(original)
           PY
-      - name: Shift planning area for portability matrix
+      - name: Translate planning area to geographic portability fixtures
         env:
-          AREA_OFFSET: ${{ matrix.area_offset }}
+          AREA_REGION: ${{ matrix.area_region }}
         run: |
           python3 - <<'PY'
           import os
@@ -81,14 +81,24 @@ jobs:
           a = s.index("        planning_area_volume:\n")
           b = s.index("        planning_area:\n", a)
           block = s[a:b]
-          offset = int(os.environ["AREA_OFFSET"])
-          east_m, north_m = [(0, 0), (10000, 0), (0, -10000), (-10000, 0), (0, 10000)][offset]
-          lat_delta = north_m / 111195
-          lng_delta = east_m / (111195 * 0.797)
+          # Research-only fixtures, not hardcoded coordinates in the scenario.
+          centers = {
+              "kentland": (37.20005, -80.57900),
+              "tokyo": (35.68000, 139.75000),
+              "zurich": (47.38000, 8.54000),
+              "helsinki": (60.17000, 24.94000),
+              "stanford": (37.43000, -122.17000),
+          }
+          label = os.environ["AREA_REGION"]
+          target_lat, target_lng = centers[label]
+          original_lat = (37.1853 + 37.2148) / 2
+          original_lng = (-80.614 + -80.544) / 2
+          lat_delta = target_lat-original_lat
+          lng_delta = target_lng-original_lng
           block = re.sub(r"lat: (-?\d+\.\d+)", lambda m: f"lat: {float(m[1])+lat_delta:.9f}", block)
           block = re.sub(r"lng: (-?\d+\.\d+)", lambda m: f"lng: {float(m[1])+lng_delta:.9f}", block)
           p.write_text(s[:a] + block + s[b:])
-          print(f"area_offset={offset}, east={east_m}m, north={north_m}m")
+          print(f"Planning area fixture={label}, center=({target_lat}, {target_lng})")
           PY
       - name: Verify real DSS API Red/Green (no infrastructure false positives)
         working-directory: monitoring
@@ -103,7 +113,7 @@ jobs:
           make -C monitoring/uss_qualifier test > /tmp/old-red.log 2>&1
           status=$?
           set -e
-          echo "variant=$VARIANT area_offset=${{ matrix.area_offset }} qualifier_exit=$status"
+          echo "variant=$VARIANT area_region=${{ matrix.area_region }} qualifier_exit=$status"
           tail -100 /tmp/old-red.log
           if grep -q "Execution error in scenario" /tmp/old-red.log; then
             echo "FAIL: scenario execution error, not a meaningful regression signal"
@@ -122,7 +132,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pr1911-review-${{ matrix.variant }}-area-${{ matrix.area_offset }}-api-reports
+          name: pr1911-review-${{ matrix.variant }}-region-${{ matrix.area_region }}-api-reports
           path: |
             /tmp/old-red.log
             monitoring/monitoring/uss_qualifier/output
