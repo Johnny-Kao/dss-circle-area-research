@@ -4,6 +4,13 @@ from datetime import UTC, datetime, timedelta
 from math import cos, pi, sin
 
 import s2sphere
+from shapely.geometry import Point, Polygon
+from uas_standards.astm.f3548.v21.api import (
+    OperationalIntentState,
+    PutOperationalIntentReferenceParameters,
+)
+from uas_standards.astm.f3548.v21.constants import Scope
+
 from monitoring.monitorlib.fetch import QueryError
 from monitoring.monitorlib.geo import Circle, flatten
 from monitoring.monitorlib.geotemporal import Volume4D
@@ -21,12 +28,6 @@ from monitoring.uss_qualifier.scenarios.astm.utm.dss.fragments.oir import (
 )
 from monitoring.uss_qualifier.scenarios.scenario import TestScenario
 from monitoring.uss_qualifier.suites.suite import ExecutionContext
-from shapely.geometry import Point, Polygon
-from uas_standards.astm.f3548.v21.api import (
-    OperationalIntentState,
-    PutOperationalIntentReferenceParameters,
-)
-from uas_standards.astm.f3548.v21.constants import Scope
 
 
 class TestAreaNotApplicable(Exception):
