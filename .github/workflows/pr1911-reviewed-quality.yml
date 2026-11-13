@@ -1,0 +1,53 @@
+name: PR1911 reviewed candidate quality gate
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-review-revision']
+    paths:
+      - 'research/monitoring/oir_circle_overlap_review.py'
+      - 'research/monitoring/oir_circle_overlap.md'
+      - '.github/workflows/pr1911-reviewed-quality.yml'
+permissions:
+  contents: read
+jobs:
+  review-quality:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+      - uses: astral-sh/setup-uv@v6
+      - name: Stage exact reviewed candidate and documentation
+        run: |
+          cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("monitoring/monitoring")
+          index=root/"uss_qualifier/scenarios/astm/utm/dss/__init__.py"
+          index.write_text(index.read_text()+"from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n")
+          ids=root/"monitorlib/ids.py"
+          ids.write_text(ids.read_text().replace("# Next code: 406","# Next code: 408",1))
+          PY
+      - name: Install Monitoring dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Ruff format check
+        working-directory: monitoring
+        run: uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+      - name: Ruff lint check
+        working-directory: monitoring
+        run: uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+      - name: Verify scenario import
+        working-directory: monitoring
+        run: uv run --no-sync python -c 'from monitoring.uss_qualifier.scenarios.astm.utm.dss import OIRCircleOverlap; print(OIRCircleOverlap.__name__)'
+      - name: Validate scenario documentation
+        working-directory: monitoring/monitoring/uss_qualifier
+        env:
+          PYTHONPATH: ../..
+        run: ../../.venv/bin/python scenarios/documentation/validate_documentation.py
