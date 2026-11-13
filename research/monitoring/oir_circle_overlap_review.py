@@ -43,7 +43,7 @@ class OIRCircleOverlap(TestScenario):
     _QUERY_RADIUS_M = 1.0
     _INSIDE_QUERY_RADIUS_M = 50.0
     _LEGACY_POLYGON_VERTICES = 20
-    _CIRCLE_CONFIGURATIONS = ((200.0, 0.75, 1.25),)
+    _CIRCLE_CONFIGURATIONS = ((200.0, 0.75, 1.25), (150.0, 0.50, 1.20), (100.0, 0.25, 1.10), (80.0, 0.10, 1.05))
     _EDGE_FRACTIONS = tuple(i / 10 for i in range(1, 10))
     _AREA_SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
