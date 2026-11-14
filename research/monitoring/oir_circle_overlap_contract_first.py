@@ -5,6 +5,7 @@ S2 is used only to choose a challenging location for the fixture.
 """
 
 import s2sphere
+
 from monitoring.monitorlib.geo import Circle
 from monitoring.uss_qualifier.scenarios.astm.utm.dss.oir_circle_overlap_review import (
     OIRCircleOverlap as BaseScenario,
