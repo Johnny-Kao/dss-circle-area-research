@@ -5,6 +5,7 @@ not as the expected DSS result or a permitted implementation requirement.
 """
 
 import s2sphere
+
 from monitoring.monitorlib.geo import Circle
 from monitoring.uss_qualifier.scenarios.astm.utm.dss.oir_circle_overlap_review import (
     OIRCircleOverlap as BaseScenario,

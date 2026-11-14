@@ -5,6 +5,7 @@ on:
     branches: ['research/pr1911-contract-first-fixture', 'research/pr1911-diagnostic-design']
     paths:
       - 'research/monitoring/oir_circle_overlap_contract_first.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
       - 'research/monitoring/scan_contract_first_coverage.py'
       - '.github/workflows/pr1911-contract-first.yml'
 permissions:
@@ -26,6 +27,7 @@ jobs:
         run: |
           cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap_review.py
           cp research/research/monitoring/oir_circle_overlap_contract_first.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_standalone.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap_standalone.py
           python3 - <<'PY'
           from pathlib import Path
           root = Path("monitoring/monitoring")
@@ -47,3 +49,4 @@ jobs:
         run: |
           uv run --no-sync python -m compileall -q monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap_standalone.py

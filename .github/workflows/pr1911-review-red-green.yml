@@ -6,6 +6,7 @@ on:
     paths:
       - 'research/monitoring/oir_circle_overlap_review.py'
       - 'research/monitoring/oir_circle_overlap_contract_first.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
       - '.github/workflows/pr1911-review-red-green.yml'
 permissions:
   contents: read
@@ -40,8 +41,7 @@ jobs:
         run: docker build --tag local/dss:pr1914-fixed fixed-dss
       - name: Stage isolated OIR circle scenario and targeted suite
         run: |
-          cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap_review.py
-          cp research/research/monitoring/oir_circle_overlap_contract_first.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_standalone.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
           python3 - <<'PY'
           from pathlib import Path
