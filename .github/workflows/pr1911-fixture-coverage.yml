@@ -2,7 +2,7 @@ name: PR1911 research fixture coverage scan
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-review-revision']
+    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment']
     paths:
       - 'research/monitoring/scan_fixture_coverage.py'
       - '.github/workflows/pr1911-fixture-coverage.yml'
