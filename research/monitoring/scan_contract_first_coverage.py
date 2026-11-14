@@ -73,11 +73,11 @@ def main():
             scenario._planning_area = area_at(lat, lng, shape)
             try:
                 scenario._circles()
-                assert scenario._fixture_detail["crosses_s2_edge"]
-                assert abs(scenario._fixture_detail["overlap_m"] - 0.5) < 0.001
+                assert scenario._fixture_detail["diagnostic"]
+                assert scenario._fixture_detail["true_overlap_m"] > 0.01
                 totals[shape][0] += 1
                 print(
-                    f"OK {place:10} {shape:10} R={scenario._fixture_detail['radius_m']:g}m"
+                    f"OK {place:10} {shape:10} R={scenario._fixture_detail['primary_radius_m']:g}m"
                 )
             except TestAreaNotApplicable:
                 totals[shape][1] += 1

@@ -2,7 +2,7 @@ name: PR1911 contract-first fixture research
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-contract-first-fixture']
+    branches: ['research/pr1911-contract-first-fixture', 'research/pr1911-diagnostic-design']
     paths:
       - 'research/monitoring/oir_circle_overlap_contract_first.py'
       - 'research/monitoring/scan_contract_first_coverage.py'
