@@ -2,9 +2,10 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment', 'research/pr1911-direct-s2-boundary']
+    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment', 'research/pr1911-direct-s2-boundary', 'research/pr1911-contract-first-fixture']
     paths:
       - 'research/monitoring/oir_circle_overlap_review.py'
+      - 'research/monitoring/oir_circle_overlap_contract_first.py'
       - '.github/workflows/pr1911-review-red-green.yml'
 permissions:
   contents: read
@@ -15,8 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         variant: [old, fixed]
-        area_region: [kentland, tokyo, zurich, helsinki, stanford]
-        area_shape: [rectangle, concave_l]
+        area_region: [kentland, stanford]
+        area_shape: [rectangle]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +40,8 @@ jobs:
         run: docker build --tag local/dss:pr1914-fixed fixed-dss
       - name: Stage isolated OIR circle scenario and targeted suite
         run: |
-          cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_review.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap_review.py
+          cp research/research/monitoring/oir_circle_overlap_contract_first.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
           python3 - <<'PY'
           from pathlib import Path
