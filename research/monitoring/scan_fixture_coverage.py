@@ -58,8 +58,9 @@ for lat, lng in places:
         try:
             scenario._circles()
             results[shape][0] += 1
-        except TestAreaNotApplicable:
+        except TestAreaNotApplicable as exc:
             results[shape][1] += 1
+            print(f"UNSUPPORTED lat={lat:6.2f} lng={lng:8.2f} shape={shape}: {exc}")
 
 for shape, (ok, missing) in results.items():
     print(f"{shape:12s} fixture_created={ok}/{ok+missing} not_applicable={missing}")
