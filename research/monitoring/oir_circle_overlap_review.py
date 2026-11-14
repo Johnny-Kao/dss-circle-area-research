@@ -197,10 +197,10 @@ class OIRCircleOverlap(TestScenario):
                 projection = min(
                     inward.dot_prod(v) for v in self._legacy_vertices(boundary, radius)
                 )
-                distance = max(0.0, -projection * self._EARTH_RADIUS_M) + 0.25
+                distance = max(0.0, -projection * self._EARTH_RADIUS_M) + 0.01
                 primary = self._move_point(boundary, inward, distance)
-                query = self._move_point(boundary, -inward, 1.25)
-                if distance + 0.25 >= radius:
+                query = self._move_point(boundary, -inward, 1.01)
+                if distance + 0.01 >= radius:
                     continue
                 query_cell = self._cell_id(query)
                 if self._cell_id(primary) != cid or query_cell not in neighbors:
