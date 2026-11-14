@@ -66,3 +66,36 @@ for shape, (ok, missing) in results.items():
     print(f"{shape:12s} fixture_created={ok}/{ok+missing} not_applicable={missing}")
 
 # This experiment is observational: do not equate unsuitable areas with DSS defects.
+
+print("EXPERIMENTS: rectangle in 11 geographic positions")
+original_configs = OIRCircleOverlap._CIRCLE_CONFIGURATIONS
+original_edges = OIRCircleOverlap._EDGE_FRACTIONS
+experiments = {
+    "baseline": (original_configs, original_edges),
+    "more_edge_positions": (original_configs, tuple(i / 20 for i in range(1, 20))),
+    "more_radii": (
+        tuple((radius, crossing, 1.15) for radius in (50, 80, 100, 120, 150, 200, 250, 300)
+              for crossing in (0.5, 0.85)),
+        original_edges,
+    ),
+    "more_radii_and_edges": (
+        tuple((radius, crossing, 1.15) for radius in (50, 80, 100, 120, 150, 200, 250, 300)
+              for crossing in (0.5, 0.85)),
+        tuple(i / 20 for i in range(1, 20)),
+    ),
+}
+for label, (configs, edges) in experiments.items():
+    OIRCircleOverlap._CIRCLE_CONFIGURATIONS = configs
+    OIRCircleOverlap._EDGE_FRACTIONS = edges
+    passed, failed = [], []
+    for lat, lng in places:
+        scenario = object.__new__(OIRCircleOverlap)
+        scenario._planning_area = area_at(lat, lng, "rectangle")
+        try:
+            scenario._circles()
+            passed.append((lat, lng))
+        except TestAreaNotApplicable:
+            failed.append((lat, lng))
+    print(f"{label}: success={len(passed)}/11 failed={failed}")
+OIRCircleOverlap._CIRCLE_CONFIGURATIONS = original_configs
+OIRCircleOverlap._EDGE_FRACTIONS = original_edges
