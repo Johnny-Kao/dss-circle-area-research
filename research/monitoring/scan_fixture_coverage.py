@@ -90,4 +90,4 @@ for radius in (80, 100, 120, 150, 180, 200, 250):
         candidate._planning_area = area_at(lat, lng, "rectangle")
         candidate._circles()
         targets.append(int(candidate._adversarial))
-    print(f"RADIUS={radius}: first-five-adversarial={targets}")
+    print(f"S2 EDGE PROJECTION radius={radius}: first-five-adversarial={targets}")
