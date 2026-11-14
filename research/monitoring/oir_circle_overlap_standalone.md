@@ -1,4 +1,4 @@
-# ASTM SCD DSS: OIR circle overlap
+# ASTM SCD DSS: OIR circle overlap test scenario
 
 ## Overview
 
