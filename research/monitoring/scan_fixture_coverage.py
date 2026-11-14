@@ -50,7 +50,7 @@ places = [(37.2, -80.58), (35.68, 139.75), (47.38, 8.54),
           (0.5, 23.5), (-33.9, 151.2), (-55, -68),
           (72, 20), (81.0, -5), (-75, 110)]
 shapes = ("rectangle", "concave_l", "circle", "tiny", "corridor")
-results = {s: [0, 0] for s in shapes}
+results = {s: [0, 0, 0] for s in shapes}
 for lat, lng in places:
     for shape in shapes:
         scenario = object.__new__(OIRCircleOverlap)
@@ -58,12 +58,14 @@ for lat, lng in places:
         try:
             scenario._circles()
             results[shape][0] += 1
+            if scenario._adversarial:
+                results[shape][2] += 1
         except TestAreaNotApplicable as exc:
             results[shape][1] += 1
             print(f"UNSUPPORTED lat={lat:6.2f} lng={lng:8.2f} shape={shape}: {exc}")
 
-for shape, (ok, missing) in results.items():
-    print(f"{shape:12s} fixture_created={ok}/{ok+missing} not_applicable={missing}")
+for shape, (ok, missing, adversarial) in results.items():
+    print(f"{shape:12s} fixture_created={ok}/{ok+missing} adversarial={adversarial} general_overlap={ok-adversarial} not_applicable={missing}")
 
 # This experiment is observational: do not equate unsuitable areas with DSS defects.
 
