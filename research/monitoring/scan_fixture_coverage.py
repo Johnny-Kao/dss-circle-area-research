@@ -81,3 +81,13 @@ for shape, (ok, missing, adversarial) in results.items():
         f"{shape}: fixture={ok}/{ok + missing}, adversarial={adversarial}, "
         f"general_overlap={ok - adversarial}, unavailable={missing}"
     )
+
+for radius in (80, 100, 120, 150, 180, 200, 250):
+    OIRCircleOverlap._OIR_RADIUS_M = radius
+    targets = []
+    for lat, lng in places[:5]:
+        candidate = object.__new__(OIRCircleOverlap)
+        candidate._planning_area = area_at(lat, lng, "rectangle")
+        candidate._circles()
+        targets.append(int(candidate._adversarial))
+    print(f"RADIUS={radius}: first-five-adversarial={targets}")
