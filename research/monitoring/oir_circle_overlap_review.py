@@ -93,20 +93,6 @@ class OIRCircleOverlap(TestScenario):
             cls._S2_CELL_LEVEL
         )
 
-    @classmethod
-    def _inside_bounds(cls, point, bounds):
-        lat, lng = cls._point_to_lat_lng(point)
-        return (
-            bounds.lat_min < lat < bounds.lat_max
-            and bounds.lng_min < lng < bounds.lng_max
-        )
-
-    @classmethod
-    def _circle_inside_bounds(cls, center, radius, bounds):
-        return cls._inside_bounds(center, bounds) and all(
-            cls._inside_bounds(p, bounds) for p in cls._ring_points(center, radius)
-        )
-
     def _candidate_cells(self, bounds):
         cells = {}
         for a in self._AREA_SAMPLE_FRACTIONS:
@@ -300,7 +286,7 @@ class OIRCircleOverlap(TestScenario):
             self.end_test_scenario()
             return
 
-        self.record_note("fixture_constructed", "S2 boundary fixture constructed")
+        self.record_note("fixture_constructed", "Valid overlapping circles constructed")
         self.record_note(
             "fixture_type", "adversarial" if self._adversarial else "general_overlap"
         )

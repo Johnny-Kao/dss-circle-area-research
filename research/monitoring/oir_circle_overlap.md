@@ -7,10 +7,11 @@ overlaps a larger registered circular operational intent reference (OIR) close
 to its boundary.
 
 The scenario constructs a circular OIR inside the provided
-`PlanningAreaResource` and places an overlapping 1 m search circle on the
-opposite side of a nearby spatial indexing boundary. It also searches with a
-smaller circle contained inside the OIR. Both searches must discover the OIR
-when their altitude and time intervals overlap.
+`PlanningAreaResource` and searches with a 1 m circle overlapping its edge.
+When possible, the circles are placed on opposite sides of an actual spatial
+indexing boundary. A smaller circle contained inside the OIR is also queried.
+Both searches must discover the OIR when their altitude and time intervals
+overlap.
 
 The planning area must provide sufficient room to accommodate the circles
 and a positive altitude interval in W84 meters. The scenario selects an
