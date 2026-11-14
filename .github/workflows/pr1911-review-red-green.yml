@@ -7,6 +7,7 @@ on:
       - 'research/monitoring/oir_circle_overlap_review.py'
       - 'research/monitoring/oir_circle_overlap_contract_first.py'
       - 'research/monitoring/oir_circle_overlap_standalone.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.md'
       - '.github/workflows/pr1911-review-red-green.yml'
 permissions:
   contents: read
@@ -42,7 +43,7 @@ jobs:
       - name: Stage isolated OIR circle scenario and targeted suite
         run: |
           cp research/research/monitoring/oir_circle_overlap_standalone.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
-          cp research/research/monitoring/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/
+          cp research/research/monitoring/oir_circle_overlap_standalone.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
           python3 - <<'PY'
           from pathlib import Path
           p = Path("monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py")
