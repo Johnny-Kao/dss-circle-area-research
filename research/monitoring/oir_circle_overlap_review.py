@@ -279,7 +279,9 @@ class OIRCircleOverlap(TestScenario):
             return
 
         self.record_note("fixture_constructed", "S2 boundary fixture constructed")
-        self.record_note("fixture_type", "adversarial" if self._adversarial else "general_overlap")
+        self.record_note(
+            "fixture_type", "adversarial" if self._adversarial else "general_overlap"
+        )
         self.begin_test_case("Setup")
         self._cleanup_known_oir("Clear previous test OIR")
         self.end_test_case()
