@@ -44,16 +44,9 @@ class OIRCircleOverlap(TestScenario):
     _EARTH_RADIUS_M = 6371010.0
     _S2_CELL_LEVEL = 13
     _QUERY_RADIUS_M = 1.0
-    _INSIDE_QUERY_RADIUS_M = 50.0
     _DEFAULT_ALTITUDES_M = (30.0, 120.0)
     _LEGACY_POLYGON_VERTICES = 20
-    _CIRCLE_CONFIGURATIONS = (
-        (200.0, 0.75, 1.25),
-        (150.0, 0.50, 1.20),
-        (100.0, 0.25, 1.10),
-        (80.0, 0.10, 1.05),
-    )
-    _EDGE_FRACTIONS = tuple(i / 10 for i in range(1, 10))
+    _OIR_RADIUS_M = 200.0
     _AREA_SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
     @staticmethod
@@ -192,58 +185,82 @@ class OIRCircleOverlap(TestScenario):
                 inward = a.cross_prod(b).normalize()
                 if inward.dot_prod(cell.get_center()) < 0:
                     inward = -inward
-                for radius, crossing, offset in self._CIRCLE_CONFIGURATIONS:
-                    for fraction in self._EDGE_FRACTIONS:
-                        boundary = self._interpolate_edge(a, b, fraction)
-                        primary = self._move_point(boundary, inward, radius - crossing)
-                        query = self._move_point(boundary, -inward, offset)
-                        if self._cell_id(primary) != cid:
-                            continue
-                        query_cell = self._cell_id(query)
-                        if query_cell not in neighbors:
-                            continue
-                        if not all(
-                            self._cell_id(p) == query_cell
-                            for p in self._ring_points(query, self._QUERY_RADIUS_M)
-                        ):
-                            continue
-                        if (
-                            primary.angle(query) * self._EARTH_RADIUS_M
-                            >= radius + self._QUERY_RADIUS_M
-                        ):
-                            continue
-                        if not self._circle_inside_bounds(
-                            primary, radius, bounds
-                        ) or not self._circle_inside_bounds(
-                            query, self._QUERY_RADIUS_M, bounds
-                        ):
-                            continue
-                        if not self._circle_inside_volume(
-                            primary, radius, volume, reference
-                        ):
-                            continue
-                        if not self._circle_inside_volume(
-                            query, self._QUERY_RADIUS_M, volume, reference
-                        ):
-                            continue
-                        plat, plng = self._point_to_lat_lng(primary)
-                        qlat, qlng = self._point_to_lat_lng(query)
-                        circles = (
-                            Circle.from_meters(plat, plng, radius),
-                            Circle.from_meters(qlat, qlng, self._QUERY_RADIUS_M),
-                            Circle.from_meters(plat, plng, self._INSIDE_QUERY_RADIUS_M),
-                        )
-                        if all(
-                            cell.contains(v)
-                            for v in self._legacy_vertices(primary, radius)
-                        ):
-                            self._adversarial = True
-                            return circles
-                        if fallback is None:
-                            fallback = circles
+                radius = self._OIR_RADIUS_M
+                boundary = self._interpolate_edge(a, b, 0.5)
+                # The legacy inscribed loop must stay on the near side.
+                # Derive the necessary center offset from the actual edge plane.
+                projection = min(
+                    inward.dot_prod(v) for v in self._legacy_vertices(boundary, radius)
+                )
+                distance = max(0.0, -projection * self._EARTH_RADIUS_M) + 0.25
+                primary = self._move_point(boundary, inward, distance)
+                query = self._move_point(boundary, -inward, 1.25)
+                if distance + 0.25 >= radius:
+                    continue
+                query_cell = self._cell_id(query)
+                if self._cell_id(primary) != cid or query_cell not in neighbors:
+                    continue
+                if any(
+                    self._cell_id(p) != query_cell
+                    for p in self._ring_points(query, self._QUERY_RADIUS_M)
+                ):
+                    continue
+                if not self._circle_inside_volume(
+                    primary, radius, volume, reference
+                ) or not self._circle_inside_volume(
+                    query, self._QUERY_RADIUS_M, volume, reference
+                ):
+                    continue
+                plat, plng = self._point_to_lat_lng(primary)
+                qlat, qlng = self._point_to_lat_lng(query)
+                circles = (
+                    Circle.from_meters(plat, plng, radius),
+                    Circle.from_meters(qlat, qlng, self._QUERY_RADIUS_M),
+                    Circle.from_meters(plat, plng, 50.0),
+                )
+                if all(
+                    cell.contains(v) for v in self._legacy_vertices(primary, radius)
+                ):
+                    self._adversarial = True
+                    return circles
+                if fallback is None:
+                    fallback = circles
         if fallback is not None:
             self._adversarial = False
             return fallback
+        # Small or narrow areas may not contain a level-13 cell edge.
+        # Still exercise the ASTM requirement with an ordinary overlapping pair.
+        width_m = (
+            (bounds.lng_max - bounds.lng_min)
+            * self._EARTH_RADIUS_M
+            * cos(reference.lat().radians)
+            * pi
+            / 180
+        )
+        height_m = (bounds.lat_max - bounds.lat_min) * self._EARTH_RADIUS_M * pi / 180
+        radius = min(50.0, width_m / 5, height_m / 5)
+        if radius > 2.0:
+            for a in self._AREA_SAMPLE_FRACTIONS:
+                for b in self._AREA_SAMPLE_FRACTIONS:
+                    center = s2sphere.LatLng.from_degrees(
+                        bounds.lat_min + (bounds.lat_max - bounds.lat_min) * a,
+                        bounds.lng_min + (bounds.lng_max - bounds.lng_min) * b,
+                    ).to_point()
+                    query = self._move_point(center, s2sphere.ortho(center), radius)
+                    if not self._circle_inside_volume(
+                        center, radius, volume, reference
+                    ) or not self._circle_inside_volume(
+                        query, self._QUERY_RADIUS_M, volume, reference
+                    ):
+                        continue
+                    lat, lng = self._point_to_lat_lng(center)
+                    qlat, qlng = self._point_to_lat_lng(query)
+                    self._adversarial = False
+                    return (
+                        Circle.from_meters(lat, lng, radius),
+                        Circle.from_meters(qlat, qlng, self._QUERY_RADIUS_M),
+                        Circle.from_meters(lat, lng, radius / 2),
+                    )
         raise TestAreaNotApplicable(
             f"Cannot construct valid S2 boundary fixture in Planning Area: {bounds}"
         )
