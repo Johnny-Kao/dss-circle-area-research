@@ -18,9 +18,13 @@ altitude interval strictly inside the supplied limits (using a 90 m span
 when one or both limits are absent). The locations are derived from the
 supplied planning area; no fixed geographic coordinates are required.
 
-If the planning area does not support an S2 boundary fixture, or uses an
-unsupported altitude reference, the scenario records a test-inapplicable
-note and makes no DSS conformance assertion. Such a run must not count as
+When the specialized spatial-index boundary layout is unavailable but a valid
+boundary-overlap layout exists, the scenario executes the latter and records
+`fixture_type: general_overlap`. This still checks the ASTM positive-search
+requirement, but does not claim to exercise the specialized regression case.
+If no valid boundary-overlap layout exists, or the altitude reference is
+unsupported, the scenario records a test-inapplicable note and makes no DSS
+conformance assertion. Such a run must not count as
 a passing Red/Green regression.
 
 ## Resources
