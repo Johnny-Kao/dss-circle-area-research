@@ -99,3 +99,54 @@ for label, (configs, edges) in experiments.items():
     print(f"{label}: success={len(passed)}/11 failed={failed}")
 OIRCircleOverlap._CIRCLE_CONFIGURATIONS = original_configs
 OIRCircleOverlap._EDGE_FRACTIONS = original_edges
+
+# Each gate is counted separately to identify the first systematic rejection.
+from collections import Counter
+import s2sphere
+
+for lat, lng in ((35.68,139.75),(-33.9,151.2),(72,20),(0.5,23.5)):
+    area = area_at(lat,lng,"rectangle")
+    scenario = object.__new__(OIRCircleOverlap)
+    scenario._planning_area = area
+    bounds=area.get_extents()
+    volume=area.resolved_volume4d_with_times(None,None).volume
+    reference=s2sphere.LatLng.from_degrees(lat,lng)
+    c=Counter()
+    for cid in scenario._candidate_cells(bounds):
+        cell=s2sphere.Cell(cid)
+        neighbors=set(cid.get_edge_neighbors())
+        for edge in range(4):
+            a,b=cell.get_vertex(edge),cell.get_vertex((edge+1)%4)
+            inward=a.cross_prod(b).normalize()
+            if inward.dot_prod(cell.get_center())<0:
+                inward=-inward
+            for radius,crossing,offset in original_configs:
+                for fraction in original_edges:
+                    c["candidate"]+=1
+                    boundary=scenario._interpolate_edge(a,b,fraction)
+                    primary=scenario._move_point(boundary,inward,radius-crossing)
+                    query=scenario._move_point(boundary,-inward,offset)
+                    if scenario._cell_id(primary)!=cid:
+                        c["reject_primary_cell"]+=1
+                        continue
+                    query_cell=scenario._cell_id(query)
+                    if query_cell not in neighbors:
+                        c["reject_neighbor"]+=1
+                        continue
+                    if not all(scenario._cell_id(p)==query_cell for p in scenario._ring_points(query,scenario._QUERY_RADIUS_M)):
+                        c["reject_query_ring"]+=1
+                        continue
+                    if not all(cell.contains(v) for v in scenario._legacy_vertices(primary,radius)):
+                        c["reject_legacy_polygon"]+=1
+                        continue
+                    if primary.angle(query)*scenario._EARTH_RADIUS_M >= radius+scenario._QUERY_RADIUS_M:
+                        c["reject_overlap"]+=1
+                        continue
+                    if not scenario._circle_inside_bounds(primary,radius,bounds) or not scenario._circle_inside_bounds(query,scenario._QUERY_RADIUS_M,bounds):
+                        c["reject_bounds"]+=1
+                        continue
+                    if not scenario._circle_inside_volume(primary,radius,volume,reference) or not scenario._circle_inside_volume(query,scenario._QUERY_RADIUS_M,volume,reference):
+                        c["reject_footprint"]+=1
+                        continue
+                    c["accepted"]+=1
+    print("GATES",lat,lng,dict(c))
