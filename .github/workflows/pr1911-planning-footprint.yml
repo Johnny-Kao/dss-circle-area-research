@@ -2,7 +2,7 @@ name: PR1911 PlanningArea footprint contract
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-review-revision']
+    branches: ['research/pr1911-review-revision', 'research/pr1911-direct-s2-boundary']
     paths:
       - 'research/monitoring/oir_circle_overlap_review.py'
       - 'research/monitoring/test_planning_footprint.py'
