@@ -183,6 +183,7 @@ class OIRCircleOverlap(TestScenario):
             (bounds.lat_min + bounds.lat_max) / 2,
             (bounds.lng_min + bounds.lng_max) / 2,
         )
+        fallback = None
         for cid in self._candidate_cells(bounds):
             cell = s2sphere.Cell(cid)
             neighbors = set(cid.get_edge_neighbors())
@@ -206,11 +207,6 @@ class OIRCircleOverlap(TestScenario):
                             for p in self._ring_points(query, self._QUERY_RADIUS_M)
                         ):
                             continue
-                        if not all(
-                            cell.contains(v)
-                            for v in self._legacy_vertices(primary, radius)
-                        ):
-                            continue
                         if (
                             primary.angle(query) * self._EARTH_RADIUS_M
                             >= radius + self._QUERY_RADIUS_M
@@ -232,11 +228,22 @@ class OIRCircleOverlap(TestScenario):
                             continue
                         plat, plng = self._point_to_lat_lng(primary)
                         qlat, qlng = self._point_to_lat_lng(query)
-                        return (
+                        circles = (
                             Circle.from_meters(plat, plng, radius),
                             Circle.from_meters(qlat, qlng, self._QUERY_RADIUS_M),
                             Circle.from_meters(plat, plng, self._INSIDE_QUERY_RADIUS_M),
                         )
+                        if all(
+                            cell.contains(v)
+                            for v in self._legacy_vertices(primary, radius)
+                        ):
+                            self._adversarial = True
+                            return circles
+                        if fallback is None:
+                            fallback = circles
+        if fallback is not None:
+            self._adversarial = False
+            return fallback
         raise TestAreaNotApplicable(
             f"Cannot construct valid S2 boundary fixture in Planning Area: {bounds}"
         )
@@ -272,6 +279,7 @@ class OIRCircleOverlap(TestScenario):
             return
 
         self.record_note("fixture_constructed", "S2 boundary fixture constructed")
+        self.record_note("fixture_type", "adversarial" if self._adversarial else "general_overlap")
         self.begin_test_case("Setup")
         self._cleanup_known_oir("Clear previous test OIR")
         self.end_test_case()
