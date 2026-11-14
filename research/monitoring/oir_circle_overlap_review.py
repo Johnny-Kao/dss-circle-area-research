@@ -186,7 +186,12 @@ class OIRCircleOverlap(TestScenario):
                 if inward.dot_prod(cell.get_center()) < 0:
                     inward = -inward
                 radius = self._OIR_RADIUS_M
-                boundary = self._interpolate_edge(a, b, 0.5)
+                # Project the planning-area center onto the actual S2 edge.
+                # This avoids arbitrary fractions along an edge.
+                direction = reference.to_point()
+                boundary = (direction - inward * inward.dot_prod(direction)).normalize()
+                if abs(a.angle(boundary) + boundary.angle(b) - a.angle(b)) > 1e-7:
+                    boundary = self._interpolate_edge(a, b, 0.5)
                 # The legacy inscribed loop must stay on the near side.
                 # Derive the necessary center offset from the actual edge plane.
                 projection = min(
