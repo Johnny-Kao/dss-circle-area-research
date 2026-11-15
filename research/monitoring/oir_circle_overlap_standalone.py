@@ -239,11 +239,7 @@ class OIRCircleOverlap(TestScenario):
                                 and len(used_edges) >= 2
                             ):
                                 return fixtures
-        if (
-            len(fixtures) >= 2
-            and len(used_cells) >= 2
-            and len(used_edges) >= 2
-        ):
+        if len(fixtures) >= 2 and len(used_cells) >= 2 and len(used_edges) >= 2:
             return fixtures
         raise FixtureUnavailable(
             "Need two distinct S2 edge directions and cells within "
