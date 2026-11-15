@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-compact-pattern-experiment']
+    branches: ['research/pr1911-lean-api-hybrid']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -258,7 +258,7 @@ jobs:
           import re
           from pathlib import Path
           log = Path("/tmp/old-red.log").read_text()
-          cases = re.findall(r"Note: fixture_constructed[^\n]*pattern=\d+", log)
+          cases = re.findall(r"Note: fixture_constructed[^\n]*cell=\d+; edge=\d+", log)
           assert len(cases) >= 1, f"No valid relative-position fixture was exercised"
           assert "Note: test_inapplicable" not in log
           print(f"Valid area-relative patterns verified: {len(cases)}")
