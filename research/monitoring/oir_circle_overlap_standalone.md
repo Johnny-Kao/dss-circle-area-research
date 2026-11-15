@@ -7,7 +7,7 @@ when a small circular query genuinely overlaps its boundary. Search must return
 every overlapping reference under ASTM F3548-21 DSS0005,2; additional references
 are permitted, so this scenario does not test their absence.
 
-The scenario creates up to four circular OIRs one at a time within the
+The scenario creates up to six circular OIRs one at a time within the
 configured PlanningAreaResource. Their small query circles overlap genuine
 circular boundaries, with cases selected from distinct spatial grid cells and
 edge directions. A PlanningAreaResource that cannot support at least two
