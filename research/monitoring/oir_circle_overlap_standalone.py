@@ -140,15 +140,37 @@ class OIRCircleOverlap(TestScenario):
         return low + (high - low) / 4, high - (high - low) / 4
 
     def _area_bounds(self, volume):
-        """Construct circle bounds without requiring a valid wrapped LatLngRect."""
-        if volume.outline_circle is None:
+        """Produce sampling bounds without invalid wrapped longitude rectangles."""
+        if volume.outline_polygon is not None:
+            vertices = volume.outline_polygon.vertices
+            longitudes = [v.lng for v in vertices]
+            if max(longitudes) - min(longitudes) > 180:
+                # Unwrap only the local antimeridian-crossing polygon for
+                # sampling. Actual containment still uses the input polygon.
+                anchor = longitudes[0]
+                unwrapped = [
+                    anchor + (lng - anchor + 180) % 360 - 180
+                    for lng in longitudes
+                ]
+                return LatLngBoundingBox(
+                    lat_min=min(v.lat for v in vertices),
+                    lat_max=max(v.lat for v in vertices),
+                    lng_min=min(unwrapped),
+                    lng_max=max(unwrapped),
+                )
             return self._planning_area.get_extents()
+        if volume.outline_circle is None:
+            raise ValueError("Planning Area needs a circle or polygon outline")
         source = volume.outline_circle
         latitude_span = degrees(source.radius.in_meters() / self.EARTH_RADIUS_M)
         extreme_latitude = abs(source.center.lat) + latitude_span
         if extreme_latitude >= 90:
-            raise FixtureUnavailable(
-                "Circle enclosing a pole has no local longitude bounds"
+            # Every longitude occurs inside a circle containing a pole.
+            return LatLngBoundingBox(
+                lat_min=max(-90, source.center.lat - latitude_span),
+                lat_max=min(90, source.center.lat + latitude_span),
+                lng_min=-180,
+                lng_max=180,
             )
         longitude_span = latitude_span / cos(radians(extreme_latitude))
         return LatLngBoundingBox(
