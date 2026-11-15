@@ -44,8 +44,9 @@ class OIRCircleOverlap(TestScenario):
     EARTH_RADIUS_M = 6371010.0
     CELL_LEVEL = 13
     QUERY_RADIUS_M = 1.0
-    OIR_RADII_M = (200.0, 150.0, 100.0)
-    MAX_FIXTURES = 12
+    OIR_RADII_M = (200.0, 150.0, 100.0, 250.0, 300.0)
+    OVERLAP_DEPTHS_M = (0.5, 0.1)
+    MAX_FIXTURES = 4
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
     def __init__(
@@ -98,14 +99,12 @@ class OIRCircleOverlap(TestScenario):
     def _fits(cls, center, radius, volume, reference):
         if volume.outline_circle is not None:
             source = volume.outline_circle
-            if source.radius.units != "M":
-                raise ValueError("Planning area requires meter radii")
             center_point = s2sphere.LatLng.from_degrees(
                 source.center.lat, source.center.lng
             ).to_point()
             return (
                 center.angle(center_point) * cls.EARTH_RADIUS_M + radius + 1
-                < source.radius.value
+                < source.radius.in_meters()
             )
         if volume.outline_polygon is None:
             raise ValueError("Planning area needs a circle or polygon outline")
@@ -169,46 +168,60 @@ class OIRCircleOverlap(TestScenario):
                 if abs(a.angle(boundary) + boundary.angle(b) - a.angle(b)) > 1e-7:
                     boundary = (a + b).normalize()
 
-                for radius in self.OIR_RADII_M:
-                    # True circles overlap by 0.5 m across this cell edge.
-                    y = self.QUERY_RADIUS_M + 0.01
-                    x = radius - 0.51
-                    primary = self._move(boundary, inward, x)
-                    query = self._move(boundary, -inward, y)
-                    query_cell = self._cell(query)
-                    if self._cell(primary) != cell_id or query_cell not in neighbors:
-                        continue
-                    if not self._circle_in_cell(
-                        s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
-                    ):
-                        continue
-                    if not (
-                        self._fits(primary, radius, volume, reference)
-                        and self._fits(query, self.QUERY_RADIUS_M, volume, reference)
-                    ):
-                        continue
-                    overlap = (
-                        radius
-                        + self.QUERY_RADIUS_M
-                        - primary.angle(query) * self.EARTH_RADIUS_M
-                    )
-                    if overlap <= 0.01:
-                        continue
-                    fixtures.append(
-                        (
-                            Circle.from_meters(*self._latlng(primary), radius),
-                            Circle.from_meters(
-                                *self._latlng(query), self.QUERY_RADIUS_M
-                            ),
-                        )
-                    )
-                    self.record_note(
-                        "fixture_constructed",
-                        f"radius_m={radius}; overlap_m={overlap:.3f}; "
-                        f"cell={cell_id.id()}",
-                    )
-                    if len(fixtures) == self.MAX_FIXTURES:
-                        return fixtures
+                # Vary position and overlap depth without referencing the
+                # implementation's old approximation.
+                positions = (
+                    boundary,
+                    (a + b).normalize(),
+                    (a * 3 + b).normalize(),
+                    (a + b * 3).normalize(),
+                )
+                for position in positions:
+                    for radius in self.OIR_RADII_M:
+                        for depth in self.OVERLAP_DEPTHS_M:
+                            y = self.QUERY_RADIUS_M + 0.01
+                            x = radius - depth - 0.01
+                            primary = self._move(position, inward, x)
+                            query = self._move(position, -inward, y)
+                            query_cell = self._cell(query)
+                            if (
+                                self._cell(primary) != cell_id
+                                or query_cell not in neighbors
+                            ):
+                                continue
+                            if not self._circle_in_cell(
+                                s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
+                            ):
+                                continue
+                            if not (
+                                self._fits(primary, radius, volume, reference)
+                                and self._fits(
+                                    query, self.QUERY_RADIUS_M, volume, reference
+                                )
+                            ):
+                                continue
+                            overlap = (
+                                radius
+                                + self.QUERY_RADIUS_M
+                                - primary.angle(query) * self.EARTH_RADIUS_M
+                            )
+                            if abs(overlap - depth) > 0.001:
+                                continue
+                            fixtures.append(
+                                (
+                                    Circle.from_meters(*self._latlng(primary), radius),
+                                    Circle.from_meters(
+                                        *self._latlng(query), self.QUERY_RADIUS_M
+                                    ),
+                                )
+                            )
+                            self.record_note(
+                                "fixture_constructed",
+                                f"radius_m={radius}; overlap_m={overlap:.3f}; "
+                                f"cell={cell_id.id()}",
+                            )
+                            if len(fixtures) == self.MAX_FIXTURES:
+                                return fixtures
         if fixtures:
             return fixtures
         raise FixtureUnavailable(
