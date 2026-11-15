@@ -2,7 +2,7 @@ name: PR1911 maintainer contract acceptance
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-final-simplification']
+    branches: ['research/pr1911-upstream-ci-triage']
     paths:
       - 'research/monitoring/test_oir_circle_contract.py'
       - 'research/monitoring/oir_circle_overlap_standalone.py'
