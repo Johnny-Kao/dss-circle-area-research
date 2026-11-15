@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-final-gap-validation']
+    branches: ['research/pr1911-pole-dateline-edge-tests']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -29,6 +29,9 @@ jobs:
           - {variant: fixed, area_region: arctic, area_shape: circle}
           - {variant: fixed, area_region: antarctica, area_shape: circle}
           - {variant: fixed, area_region: dateline, area_shape: circle}
+          - {variant: fixed, area_region: dateline, area_shape: dateline_polygon}
+          - {variant: fixed, area_region: pole_north, area_shape: pole_circle}
+          - {variant: fixed, area_region: pole_south, area_shape: pole_circle}
           - {variant: fixed, area_region: kentland, area_shape: tiny_circle}
     timeout-minutes: 45
     steps:
@@ -105,6 +108,8 @@ jobs:
               "arctic": (81.00000, -5.00000),
               "antarctica": (-75.00000, 110.00000),
               "dateline": (10.00000, 179.99000),
+              "pole_north": (89.97000, 25.00000),
+              "pole_south": (-89.97000, -40.00000),
           }
           label = os.environ["AREA_REGION"]
           target_lat, target_lng = centers[label]
@@ -145,7 +150,7 @@ jobs:
           print("Concave L footprint (6 vertices) with unchanged geographic bounds")
           PY
       - name: Create circular PlanningAreaResource fixture
-        if: matrix.area_shape == 'circle' || matrix.area_shape == 'tiny_circle'
+        if: matrix.area_shape == 'circle' || matrix.area_shape == 'tiny_circle' || matrix.area_shape == 'pole_circle'
         env:
           CIRCLE_SHAPE: ${{ matrix.area_shape }}
         run: |
@@ -163,7 +168,11 @@ jobs:
           assert len(coords) == 4, coords
           center_lat = sum(float(a) for a, _ in coords) / 4
           center_lng = sum(float(b) for _, b in coords) / 4
-          radius = 2000 if os.environ["CIRCLE_SHAPE"] == "circle" else 25
+          shape = os.environ["CIRCLE_SHAPE"]
+          radius = {"circle": 2000, "tiny_circle": 25, "pole_circle": 5000}[shape]
+          if shape == "pole_circle":
+              assert abs(center_lat) >= 89.95
+              assert radius > (90 - abs(center_lat)) * 111195
           prefix, rest = block.split("              outline_polygon:\n", 1)
           altitude = "              altitude_lower:\n" + rest.split("              altitude_lower:\n", 1)[1]
           circle = (
@@ -177,6 +186,34 @@ jobs:
           )
           p.write_text(data[:start] + prefix + circle + altitude + data[finish:])
           print(f"Configured circle PlanningAreaResource with radius={radius} m")
+          PY
+      - name: Create cross-antimeridian polygon PlanningAreaResource fixture
+        if: matrix.area_shape == 'dateline_polygon'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          a = data.index("        planning_area_volume:\n")
+          b = data.index("        planning_area:\n", a)
+          section = data[a:b]
+          vertices = [
+              (9.985, 179.973),
+              (10.015, 179.973),
+              (10.015, -179.973),
+              (9.985, -179.973),
+          ]
+          assert max(lng for _, lng in vertices) - min(lng for _, lng in vertices) > 180
+          vertex_lines = "\n".join(
+              f"                  - lat: {lat:.9f}\n                    lng: {lng:.9f}"
+              for lat, lng in vertices
+          )
+          first = section.index("                vertices:\n")
+          end = section.index("              altitude_lower:", first)
+          section = section[:first] + "                vertices:\n" + vertex_lines + "\n" + section[end:]
+          p.write_text(data[:a] + section + data[b:])
+          print("Polygon truly crosses 180-degree longitude")
           PY
       - name: Verify real DSS API Red/Green (no infrastructure false positives)
         working-directory: monitoring
