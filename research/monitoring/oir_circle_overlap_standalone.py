@@ -292,7 +292,10 @@ class OIRCircleOverlap(TestScenario):
                 query_circle,
                 "Discover boundary-overlapping OIR",
                 "Boundary overlap is discoverable",
-                start, end, alt0, alt1,
+                start,
+                end,
+                alt0,
+                alt1,
             )
             # Ordinary overlap is a positive control, not a negative search test.
             control = Circle.from_meters(
@@ -304,7 +307,10 @@ class OIRCircleOverlap(TestScenario):
                 control,
                 "Ordinary contained circle discovers OIR",
                 "Ordinary contained circle discovers OIR",
-                start, end, alt0, alt1,
+                start,
+                end,
+                alt0,
+                alt1,
             )
 
             self.begin_test_step("Delete circular OIR")
