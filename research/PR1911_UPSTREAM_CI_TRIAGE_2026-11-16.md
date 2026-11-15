@@ -55,7 +55,9 @@ These are local conformance findings, **not maintainer acceptance**.
   - `monitoring/uss_qualifier/suites/interuss/dss/all_tests.md`
   - `monitoring/uss_qualifier/suites/faa/uft/message_signing.md`
 - Corrected CI confirmed: `1021 files already formatted`, entire-repository `ruff check` PASS, generated native Suite docs pass project-native `make lint`, scenario import and dss_probing registration PASS, and 5/5 ASTM positive/fault injection tests PASS.
-- Full `make check-hygiene` has also been added to the CI gate, for follow-up validation of exact upstream repository procedures.
+- A first run of the **exact** `make check-hygiene` [43734751145](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43734751145) exposed **seven previously hidden `basedpyright` errors** (the original upstream job stopped at Ruff): nullable planning altitude bounds, possibly nullable S2 CellID and optional OIR OVN.
+- These have now been fixed in the Research scenario at commit `d2b0b200`: restructure altitude fallback for type narrowing, assert the required CellID invariant, and assert created OIR's OVN before deletion, matching existing project usage of `assert oir.ovn is not None`. **335 lines** (one line above the earlier 334-line candidate), no changes to S2 generation, search assertions or sample parameters.
+- Rerunning **full original project-wide `make check-hygiene`** in [CI 43735048093](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43735048093). Targeted [5 contract tests and 20/20 independent S2 oracle](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43735059765) passed. [Actual DSS API matrix](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43735064107) underway; gate outcomes must be checked before declaring final acceptance.
 
 ## Important distinctions / constraints
 
