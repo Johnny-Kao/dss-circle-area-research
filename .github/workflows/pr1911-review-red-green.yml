@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-lean-api-hybrid']
+    branches: ['research/pr1911-maintainer-wording-polish']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -93,6 +93,36 @@ jobs:
           original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
           config.write_text(original)
           PY
+      - name: Check scenario wording and official documentation conventions
+        if: matrix.variant == 'fixed' && matrix.area_region == 'kentland' && matrix.area_shape == 'rectangle'
+        working-directory: monitoring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scenario = Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py").read_text()
+          docs = Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md").read_text()
+          required_steps = (
+              "Clear previous test OIR",
+              "Create circular OIR",
+              "Discover boundary-overlapping OIR",
+              "Ordinary contained circle discovers OIR",
+              "Delete circular OIR",
+          )
+          for step in required_steps:
+              assert f'self.begin_test_step("{step}")' in scenario, step
+              assert f"### {step} test step" in docs, step
+          for check in ("Boundary overlap is discoverable", "Ordinary contained circle discovers OIR"):
+              assert f'"{check}"' in scenario, check
+              assert f"#### " in docs and f"{check} check" in docs, check
+          for prohibited in ("Kentland", "Stanford", "interuss/dss#", "20-gon", "test-owned"):
+              assert prohibited not in docs, prohibited
+          assert "#### ⚠️ Boundary overlap is discoverable check" in docs
+          assert "#### 🛑 Ordinary contained circle discovers OIR check" in docs
+          print("Scenario steps, check names and maintainer wording are consistent.")
+          PY
+          make -C monitoring/uss_qualifier lint
+
       - name: Translate planning area to geographic portability fixtures
         env:
           AREA_REGION: ${{ matrix.area_region }}
