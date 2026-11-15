@@ -5,6 +5,7 @@ are used to select an implementation-independent boundary search fixture.
 """
 
 from datetime import UTC, datetime, timedelta
+from itertools import product
 from math import cos, sin
 
 import s2sphere
@@ -145,20 +146,19 @@ class OIRCircleOverlap(TestScenario):
         lng = (bounds.lng_min + bounds.lng_max) / 2
         reference = s2sphere.LatLng.from_degrees(lat, lng)
         direction = reference.to_point()
-        candidate_cells = {}
-        for x in self.SAMPLE_FRACTIONS:
-            for y in self.SAMPLE_FRACTIONS:
-                longitude = bounds.lng_min + (bounds.lng_max - bounds.lng_min) * y
-                longitude = (longitude + 180) % 360 - 180
-                sample = s2sphere.LatLng.from_degrees(
-                    bounds.lat_min + (bounds.lat_max - bounds.lat_min) * x,
-                    longitude,
-                ).to_point()
-                cell_id = self._cell(sample)
-                candidate_cells[cell_id.id()] = cell_id
+
+        cells = {}
+        for fx, fy in product(self.SAMPLE_FRACTIONS, repeat=2):
+            longitude = (bounds.lng_min + (bounds.lng_max - bounds.lng_min) * fy + 180) % 360 - 180
+            sample = s2sphere.LatLng.from_degrees(
+                bounds.lat_min + (bounds.lat_max - bounds.lat_min) * fx,
+                longitude,
+            ).to_point()
+            cid = self._cell(sample)
+            cells[cid.id()] = cid
 
         fixtures = []
-        for cell_id in sorted(candidate_cells.values(), key=lambda c: c.id()):
+        for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
             neighbors = set(cell_id.get_edge_neighbors())
             for edge in range(4):
@@ -169,61 +169,46 @@ class OIRCircleOverlap(TestScenario):
                 boundary = (direction - inward * inward.dot_prod(direction)).normalize()
                 if abs(a.angle(boundary) + boundary.angle(b) - a.angle(b)) > 1e-7:
                     boundary = (a + b).normalize()
-
-                # Vary position and overlap depth without referencing the
-                # implementation's old approximation.
                 positions = (
-                    boundary,
-                    (a + b).normalize(),
-                    (a * 3 + b).normalize(),
-                    (a + b * 3).normalize(),
+                    boundary, (a + b).normalize(),
+                    (a * 3 + b).normalize(), (a + b * 3).normalize(),
                 )
-                for position in positions:
-                    for radius in self.OIR_RADII_M:
-                        for depth in self.OVERLAP_DEPTHS_M:
-                            y = self.QUERY_RADIUS_M + 0.01
-                            x = radius - depth - 0.01
-                            primary = self._move(position, inward, x)
-                            query = self._move(position, -inward, y)
-                            query_cell = self._cell(query)
-                            if (
-                                self._cell(primary) != cell_id
-                                or query_cell not in neighbors
-                            ):
-                                continue
-                            if not self._circle_in_cell(
-                                s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
-                            ):
-                                continue
-                            if not (
-                                self._fits(primary, radius, volume, reference)
-                                and self._fits(
-                                    query, self.QUERY_RADIUS_M, volume, reference
-                                )
-                            ):
-                                continue
-                            overlap = (
-                                radius
-                                + self.QUERY_RADIUS_M
-                                - primary.angle(query) * self.EARTH_RADIUS_M
-                            )
-                            if abs(overlap - depth) > 0.001:
-                                continue
-                            fixtures.append(
-                                (
-                                    Circle.from_meters(*self._latlng(primary), radius),
-                                    Circle.from_meters(
-                                        *self._latlng(query), self.QUERY_RADIUS_M
-                                    ),
-                                )
-                            )
-                            self.record_note(
-                                "fixture_constructed",
-                                f"cell={cell_id.id()}; edge={edge}; "
-                                f"radius_m={radius}; overlap_m={overlap:.3f}",
-                            )
-                            if len(fixtures) == self.MAX_FIXTURES:
-                                return fixtures
+                for position, radius, depth in product(
+                    positions, self.OIR_RADII_M, self.OVERLAP_DEPTHS_M
+                ):
+                    primary = self._move(position, inward, radius - depth - 0.01)
+                    query = self._move(
+                        position, -inward, self.QUERY_RADIUS_M + 0.01
+                    )
+                    query_cell = self._cell(query)
+                    if self._cell(primary) != cell_id or query_cell not in neighbors:
+                        continue
+                    if not self._circle_in_cell(
+                        s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
+                    ):
+                        continue
+                    if not (
+                        self._fits(primary, radius, volume, reference)
+                        and self._fits(query, self.QUERY_RADIUS_M, volume, reference)
+                    ):
+                        continue
+                    overlap = (
+                        radius + self.QUERY_RADIUS_M
+                        - primary.angle(query) * self.EARTH_RADIUS_M
+                    )
+                    if abs(overlap - depth) > 0.001:
+                        continue
+                    fixtures.append((
+                        Circle.from_meters(*self._latlng(primary), radius),
+                        Circle.from_meters(*self._latlng(query), self.QUERY_RADIUS_M),
+                    ))
+                    self.record_note(
+                        "fixture_constructed",
+                        f"cell={cell_id.id()}; edge={edge}; "
+                        f"radius_m={radius}; overlap_m={overlap:.3f}",
+                    )
+                    if len(fixtures) == self.MAX_FIXTURES:
+                        return fixtures
         if fixtures:
             return fixtures
         raise FixtureUnavailable(
