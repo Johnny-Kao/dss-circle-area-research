@@ -230,6 +230,30 @@ class OIRCircleOverlap(TestScenario):
             f"No legal cross-cell circle overlap within PlanningAreaResource {bounds}"
         )
 
+    def _assert_found(self, circle, step_name, check_name, start, end, alt0, alt1):
+        self.begin_test_step(step_name)
+        query = Volume4D.from_values(
+            t0=start, t1=end, alt0=alt0, alt1=alt1, circle=circle
+        ).to_f3548v21()
+        with self.check(check_name, self._participants) as check:
+            try:
+                found, response = self._dss.find_op_intent(query)
+                self.record_query(response)
+                if self._oir_id not in {oir.id for oir in found}:
+                    check.record_failed(
+                        summary="Overlapping OIR was missing",
+                        details=f"OIR id={self._oir_id}; query={circle}",
+                        query_timestamps=[response.request.timestamp],
+                    )
+            except QueryError as e:
+                self.record_queries(e.queries)
+                check.record_failed(
+                    summary="Search failed",
+                    details=f"HTTP {e.cause_status_code}: {e.msg}",
+                    query_timestamps=e.query_timestamps,
+                )
+        self.end_test_step()
+
     def run(self, context: ExecutionContext):
         self.begin_test_scenario(context)
         volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
@@ -264,30 +288,24 @@ class OIRCircleOverlap(TestScenario):
             )
             self.end_test_step()
 
-            self.begin_test_step("Discover boundary-overlapping OIR")
-            query = Volume4D.from_values(
-                t0=start, t1=end, alt0=alt0, alt1=alt1, circle=query_circle
-            ).to_f3548v21()
-            with self.check(
-                "Boundary overlap is discoverable", self._participants
-            ) as check:
-                try:
-                    found, response = self._dss.find_op_intent(query)
-                    self.record_query(response)
-                    if self._oir_id not in {oir.id for oir in found}:
-                        check.record_failed(
-                            summary="Overlapping OIR was missing",
-                            details=f"OIR id={self._oir_id}; query={query_circle}",
-                            query_timestamps=[response.request.timestamp],
-                        )
-                except QueryError as e:
-                    self.record_queries(e.queries)
-                    check.record_failed(
-                        summary="Search failed",
-                        details=f"HTTP {e.cause_status_code}: {e.msg}",
-                        query_timestamps=e.query_timestamps,
-                    )
-            self.end_test_step()
+            self._assert_found(
+                query_circle,
+                "Discover boundary-overlapping OIR",
+                "Boundary overlap is discoverable",
+                start, end, alt0, alt1,
+            )
+            # Ordinary overlap is a positive control, not a negative search test.
+            control = Circle.from_meters(
+                primary.center.lat,
+                primary.center.lng,
+                min(200.0, primary.radius.in_meters() / 2),
+            )
+            self._assert_found(
+                control,
+                "Ordinary contained circle discovers OIR",
+                "Ordinary contained circle discovers OIR",
+                start, end, alt0, alt1,
+            )
 
             self.begin_test_step("Delete circular OIR")
             oir_fragments.delete_oir_query(
