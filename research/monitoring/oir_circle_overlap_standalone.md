@@ -7,8 +7,10 @@ when a small circular query genuinely overlaps its boundary. Search must return
 every overlapping reference under ASTM F3548-21 DSS0005,2; additional references
 are permitted, so this scenario does not test their absence.
 
-The circles are placed within the configured PlanningAreaResource. An
-inapplicable planning area is reported explicitly rather than treated as a pass.
+The scenario places up to 12 circular OIRs one at a time inside the configured
+PlanningAreaResource. Each one is searched using a small overlapping circle
+near its boundary. An unsuitable planning area is reported as inapplicable;
+the research CI does not count this as a passing regression.
 
 ## Resources
 

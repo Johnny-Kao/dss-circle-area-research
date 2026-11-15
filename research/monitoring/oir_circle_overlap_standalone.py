@@ -5,7 +5,7 @@ are used to select an implementation-independent boundary search fixture.
 """
 
 from datetime import UTC, datetime, timedelta
-from math import cos, pi, sin
+from math import cos, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -34,7 +34,7 @@ from monitoring.uss_qualifier.suites.suite import ExecutionContext
 
 
 class FixtureUnavailable(Exception):
-    """No valid, diagnostically useful cross-cell circles fit this planning area."""
+    """No legal cross-cell overlap fixture fits this planning area."""
 
 
 class OIRCircleOverlap(TestScenario):
@@ -45,6 +45,7 @@ class OIRCircleOverlap(TestScenario):
     CELL_LEVEL = 13
     QUERY_RADIUS_M = 1.0
     OIR_RADII_M = (200.0, 150.0, 100.0)
+    MAX_FIXTURES = 12
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
     def __init__(
@@ -73,18 +74,19 @@ class OIRCircleOverlap(TestScenario):
         return ll.lat().degrees, ll.lng().degrees
 
     @classmethod
-    def _ring(cls, center, radius, count):
-        y_axis = s2sphere.ortho(center)
-        x_axis = y_axis.cross_prod(center).normalize()
-        theta = radius / cls.EARTH_RADIUS_M
-        return [
-            (
-                center * cos(theta)
-                + x_axis * (sin(theta) * cos(2 * pi * k / count))
-                + y_axis * (sin(theta) * sin(2 * pi * k / count))
-            ).normalize()
-            for k in range(count)
-        ]
+    def _circle_in_cell(cls, cell, center, radius):
+        """Certify the entire spherical cap is in a convex S2 cell."""
+        if not cell.contains(center):
+            return False
+        clearance = sin(radius / cls.EARTH_RADIUS_M)
+        for i in range(4):
+            a, b = cell.get_vertex(i), cell.get_vertex((i + 1) % 4)
+            inward = a.cross_prod(b).normalize()
+            if inward.dot_prod(cell.get_center()) < 0:
+                inward = -inward
+            if inward.dot_prod(center) <= clearance:
+                return False
+        return True
 
     @classmethod
     def _cell(cls, point):
@@ -138,7 +140,7 @@ class OIRCircleOverlap(TestScenario):
             raise FixtureUnavailable("No positive altitude span")
         return low + (high - low) / 4, high - (high - low) / 4
 
-    def _fixture(self, volume):
+    def _fixtures(self, volume):
         bounds = self._planning_area.get_extents()
         lat = (bounds.lat_min + bounds.lat_max) / 2
         lng = (bounds.lng_min + bounds.lng_max) / 2
@@ -154,6 +156,7 @@ class OIRCircleOverlap(TestScenario):
                 cell_id = self._cell(sample)
                 candidate_cells[cell_id.id()] = cell_id
 
+        fixtures = []
         for cell_id in sorted(candidate_cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
             neighbors = set(cell_id.get_edge_neighbors())
@@ -167,20 +170,16 @@ class OIRCircleOverlap(TestScenario):
                     boundary = (a + b).normalize()
 
                 for radius in self.OIR_RADII_M:
-                    # Place B entirely in the neighboring Cell while A crosses
-                    # the Cell boundary with 0.5 m of real circular overlap.
+                    # True circles overlap by 0.5 m across this cell edge.
                     y = self.QUERY_RADIUS_M + 0.01
                     x = radius - 0.51
-                    if x + y >= radius + self.QUERY_RADIUS_M - 0.01:
-                        continue
                     primary = self._move(boundary, inward, x)
                     query = self._move(boundary, -inward, y)
                     query_cell = self._cell(query)
                     if self._cell(primary) != cell_id or query_cell not in neighbors:
                         continue
-                    if any(
-                        self._cell(point) != query_cell
-                        for point in self._ring(query, self.QUERY_RADIUS_M, 24)
+                    if not self._circle_in_cell(
+                        s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
                     ):
                         continue
                     if not (
@@ -195,15 +194,23 @@ class OIRCircleOverlap(TestScenario):
                     )
                     if overlap <= 0.01:
                         continue
+                    fixtures.append(
+                        (
+                            Circle.from_meters(*self._latlng(primary), radius),
+                            Circle.from_meters(
+                                *self._latlng(query), self.QUERY_RADIUS_M
+                            ),
+                        )
+                    )
                     self.record_note(
                         "fixture_constructed",
                         f"radius_m={radius}; overlap_m={overlap:.3f}; "
                         f"cell={cell_id.id()}",
                     )
-                    return (
-                        Circle.from_meters(*self._latlng(primary), radius),
-                        Circle.from_meters(*self._latlng(query), self.QUERY_RADIUS_M),
-                    )
+                    if len(fixtures) == self.MAX_FIXTURES:
+                        return fixtures
+        if fixtures:
+            return fixtures
         raise FixtureUnavailable(
             f"No valid cross-cell circular overlap within {bounds}"
         )
@@ -213,7 +220,7 @@ class OIRCircleOverlap(TestScenario):
         volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
         try:
             alt0, alt1 = self._altitudes(volume)
-            primary, query_circle = self._fixture(volume)
+            fixtures = self._fixtures(volume)
         except FixtureUnavailable as e:
             self.record_note("test_inapplicable", str(e))
             self.end_test_scenario()
@@ -227,54 +234,58 @@ class OIRCircleOverlap(TestScenario):
         self.begin_test_case("Overlapping circular OIR is discoverable")
         start = datetime.now(UTC) + timedelta(minutes=5)
         end = start + timedelta(minutes=60)
-        self.begin_test_step("Create circular OIR")
-        params = PutOperationalIntentReferenceParameters(
-            extents=[
-                Volume4D.from_values(
-                    t0=start, t1=end, alt0=alt0, alt1=alt1, circle=primary
-                ).to_f3548v21()
-            ],
-            key=[],
-            state=OperationalIntentState.Accepted,
-            uss_base_url=make_fake_url(),
-            subscription_id=None,
-        )
-        self._created_oir, _, _ = oir_fragments.create_oir_query(
-            scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
-        )
-        self.end_test_step()
+        for primary, query_circle in fixtures:
+            self.begin_test_step("Create circular OIR")
+            params = PutOperationalIntentReferenceParameters(
+                extents=[
+                    Volume4D.from_values(
+                        t0=start, t1=end, alt0=alt0, alt1=alt1, circle=primary
+                    ).to_f3548v21()
+                ],
+                key=[],
+                state=OperationalIntentState.Accepted,
+                uss_base_url=make_fake_url(),
+                subscription_id=None,
+            )
+            self._created_oir, _, _ = oir_fragments.create_oir_query(
+                scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
+            )
+            self.end_test_step()
 
-        self.begin_test_step("Discover boundary-overlapping OIR")
-        query = Volume4D.from_values(
-            t0=start, t1=end, alt0=alt0, alt1=alt1, circle=query_circle
-        ).to_f3548v21()
-        with self.check(
-            "Boundary overlap is discoverable", self._participants
-        ) as check:
-            try:
-                found, response = self._dss.find_op_intent(query)
-                self.record_query(response)
-                if self._oir_id not in {oir.id for oir in found}:
+            self.begin_test_step("Discover boundary-overlapping OIR")
+            query = Volume4D.from_values(
+                t0=start, t1=end, alt0=alt0, alt1=alt1, circle=query_circle
+            ).to_f3548v21()
+            with self.check(
+                "Boundary overlap is discoverable", self._participants
+            ) as check:
+                try:
+                    found, response = self._dss.find_op_intent(query)
+                    self.record_query(response)
+                    if self._oir_id not in {oir.id for oir in found}:
+                        check.record_failed(
+                            summary="Overlapping OIR was missing",
+                            details=f"OIR id={self._oir_id}; query={query_circle}",
+                            query_timestamps=[response.request.timestamp],
+                        )
+                except QueryError as e:
+                    self.record_queries(e.queries)
                     check.record_failed(
-                        summary="Overlapping OIR was missing",
-                        details=f"OIR id={self._oir_id}; query={query_circle}",
-                        query_timestamps=[response.request.timestamp],
+                        summary="Search failed",
+                        details=f"HTTP {e.cause_status_code}: {e.msg}",
+                        query_timestamps=e.query_timestamps,
                     )
-            except QueryError as e:
-                self.record_queries(e.queries)
-                check.record_failed(
-                    summary="Search failed",
-                    details=f"HTTP {e.cause_status_code}: {e.msg}",
-                    query_timestamps=e.query_timestamps,
-                )
-        self.end_test_step()
+            self.end_test_step()
 
-        self.begin_test_step("Delete circular OIR")
-        oir_fragments.delete_oir_query(
-            scenario=self, dss=self._dss, oir_id=self._oir_id, ovn=self._created_oir.ovn
-        )
-        self._created_oir = None
-        self.end_test_step()
+            self.begin_test_step("Delete circular OIR")
+            oir_fragments.delete_oir_query(
+                scenario=self,
+                dss=self._dss,
+                oir_id=self._oir_id,
+                ovn=self._created_oir.ovn,
+            )
+            self._created_oir = None
+            self.end_test_step()
         self.end_test_case()
         self.end_test_scenario()
 
