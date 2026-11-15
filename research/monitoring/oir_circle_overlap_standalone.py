@@ -16,7 +16,7 @@ from uas_standards.astm.f3548.v21.api import (
 from uas_standards.astm.f3548.v21.constants import Scope
 
 from monitoring.monitorlib.fetch import QueryError
-from monitoring.monitorlib.geo import Circle, LatLngBoundingBox, flatten
+from monitoring.monitorlib.geo import Circle, EARTH_CIRCUMFERENCE_M, LatLngBoundingBox
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.monitorlib.ids import register_resource_type
 from monitoring.monitorlib.testing import make_fake_url
@@ -95,6 +95,17 @@ class OIRCircleOverlap(TestScenario):
             cls.CELL_LEVEL
         )
 
+    @staticmethod
+    def _flatten_local(reference, point):
+        """Short-arc longitude offset for local projections across 180 degrees."""
+        lon_delta = (point.lng().degrees - reference.lng().degrees + 180) % 360 - 180
+        return (
+            lon_delta * EARTH_CIRCUMFERENCE_M * cos(reference.lat().radians) / 360,
+            (point.lat().degrees - reference.lat().degrees)
+            * EARTH_CIRCUMFERENCE_M
+            / 360,
+        )
+
     @classmethod
     def _fits(cls, center, radius, volume, reference):
         if volume.outline_circle is not None:
@@ -109,12 +120,13 @@ class OIRCircleOverlap(TestScenario):
         if volume.outline_polygon is None:
             raise ValueError("Planning area needs a circle or polygon outline")
         polygon = Polygon(
-            flatten(reference, v.as_s2sphere()) for v in volume.outline_polygon.vertices
+            cls._flatten_local(reference, v.as_s2sphere())
+            for v in volume.outline_polygon.vertices
         )
         if not polygon.is_valid or polygon.is_empty:
             raise ValueError("Invalid planning area geometry")
         return polygon.buffer(-(radius + 1)).covers(
-            Point(*flatten(reference, s2sphere.LatLng.from_point(center)))
+            Point(*cls._flatten_local(reference, s2sphere.LatLng.from_point(center)))
         )
 
     @staticmethod
