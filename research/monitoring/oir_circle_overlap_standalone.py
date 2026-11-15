@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from itertools import product
-from math import cos, sin
+from math import cos, pi, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -85,6 +85,24 @@ class OIRCircleOverlap(TestScenario):
             if inward.dot_prod(cell.get_center()) < 0:
                 inward = -inward
             if inward.dot_prod(center) <= clearance:
+                return False
+        return True
+
+    @classmethod
+    def _legacy_loop_inside_cell(cls, cell, center, radius):
+        """Only select fixtures whose inscribed loop stays in the source cell."""
+        tangent_y = s2sphere.ortho(center)
+        tangent_x = tangent_y.cross_prod(center).normalize()
+        angular_radius = radius / cls.EARTH_RADIUS_M
+        radial = sin(angular_radius)
+        for i in range(20):
+            direction = 2 * pi * i / 20
+            vertex = (
+                center * cos(angular_radius)
+                + tangent_x * (radial * cos(direction))
+                + tangent_y * (radial * sin(direction))
+            ).normalize()
+            if not cell.contains(vertex):
                 return False
         return True
 
@@ -179,6 +197,8 @@ class OIRCircleOverlap(TestScenario):
                     query = self._move(position, -inward, self.QUERY_RADIUS_M + 0.01)
                     query_cell = self._cell(query)
                     if self._cell(primary) != cell_id or query_cell not in neighbors:
+                        continue
+                    if not self._legacy_loop_inside_cell(cell, primary, radius):
                         continue
                     if not self._circle_in_cell(
                         s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
