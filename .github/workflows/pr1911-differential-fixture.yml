@@ -1,0 +1,46 @@
+name: PR1911 contract-first differential fixture discovery
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-differential-fixture-finder']
+    paths:
+      - 'research/monitoring/differential_fixture_candidates.py'
+      - 'research/monitoring/differential_s2_cover_oracle.go'
+      - 'research/monitoring/select_differential_witnesses.py'
+      - 'research/monitoring/differential_oracle_summary.py'
+      - '.github/workflows/pr1911-differential-fixture.yml'
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+      - name: Generate independent edge and corner boundary candidates
+        run: |
+          uv run --with s2sphere python research/monitoring/differential_fixture_candidates.py --mode edge --max-per-area 160 > /tmp/edges.jsonl
+          uv run --with s2sphere python research/monitoring/differential_fixture_candidates.py --mode corner --max-per-area 200 > /tmp/corners.jsonl
+          cat /tmp/edges.jsonl /tmp/corners.jsonl > /tmp/candidates.jsonl
+      - name: Compare old and fixed S2 covering implementations
+        run: |
+          mkdir oracle-go
+          cp research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod download && go run .) < /tmp/candidates.jsonl > /tmp/results.jsonl
+      - name: Require demonstrated misses without 20-gon fixture generation
+        run: |
+          python3 research/monitoring/differential_oracle_summary.py Kentland Stanford Tokyo Zurich Helsinki Tierra Norway Arctic Antarctica < /tmp/results.jsonl
+          python3 research/monitoring/select_differential_witnesses.py /tmp/results.jsonl /tmp/witnesses.json --require Kentland Stanford Tokyo Zurich Helsinki Tierra Norway Arctic Antarctica
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-differential-evidence
+          path: |
+            /tmp/candidates.jsonl
+            /tmp/results.jsonl
+            /tmp/witnesses.json
+          if-no-files-found: ignore
