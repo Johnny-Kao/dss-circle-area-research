@@ -1,4 +1,4 @@
-# ASTM F3548-21 DSS: Circular OIR overlap search
+# ASTM F3548-21 DSS: Circular OIR overlap search test scenario
 
 ## Overview
 
