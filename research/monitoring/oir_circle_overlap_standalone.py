@@ -147,7 +147,9 @@ class OIRCircleOverlap(TestScenario):
         latitude_span = degrees(source.radius.in_meters() / self.EARTH_RADIUS_M)
         extreme_latitude = abs(source.center.lat) + latitude_span
         if extreme_latitude >= 90:
-            raise FixtureUnavailable("Circle enclosing a pole has no local longitude bounds")
+            raise FixtureUnavailable(
+                "Circle enclosing a pole has no local longitude bounds"
+            )
         longitude_span = latitude_span / cos(radians(extreme_latitude))
         return LatLngBoundingBox(
             lat_min=source.center.lat - latitude_span,
