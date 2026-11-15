@@ -66,3 +66,21 @@ Keep the production candidate unchanged. For each of the four emitted fixtures i
 - Changes and comments are kept brief and mapped to the reviewer's intent. Upstream not touched without explicit approval.
 
 **Decision:** Current candidate is a proven regression scenario in tested environments, **not yet a minimized reviewer-ready implementation**. Prioritize deterministic diagnostics and geometric robustness over nominal line count.
+
+
+## Fast-stop experiment result (2026-11-15)
+
+[Test run 43717750788](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43717750788) tested a 3-radius / 1.5 m overlap candidate in the Research-only branch `research/pr1911-merge-fast`.
+
+- Kentland **old DSS returned exit 0** (no historical omission). Old-Red assertion correctly failed.
+- Stanford **old DSS returned exit 0** (no historical omission). Old-Red assertion correctly failed.
+- Fixed DSS on Kentland rectangle, concave-L, circle and Stanford rectangle passed.
+- The independent differential discovery step also passed, but it used its own fixture set and does **not** rescue the tested 1.5 m scenario's lack of diagnostic sensitivity.
+
+**Decision: REJECT 1.5 m / 3-radii candidate.** No reliable improvement in cross-implementation margin is supported. On `research/pr1911-merge-fast`, the scenario file was restored exactly to the previously verified `research/pr1911-maintainer-wording-polish` blob by commit `4a15f8e`.
+
+The reviewed 317-line candidate is the current **known-good** scenario for the tested DSS behavior. Do not claim the experiment passed or use it as a rationale to shrink the upstream fixture count. Avoid another speculative parameter-sweep before updating the existing PR: the remaining work is code-review alignment, minimal diff and documentation, not a redesign.
+
+The prior complete `dss_probing` baseline and candidate executions both had nonzero exits (see run 43710575288): compare actual failed checks and report differences rather than asserting full-suite green.
+
+No Staging or Upstream changes made by this experiment.
