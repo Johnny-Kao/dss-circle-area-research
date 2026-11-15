@@ -71,8 +71,8 @@ class CircularOverlapContractTests(TestCase):
                 for primary, query in fixtures:
                     p = primary.center.as_s2sphere().to_point()
                     q = query.center.as_s2sphere().to_point()
-                    r = primary.radius.in_meters()
-                    qr = query.radius.in_meters()
+                    r = primary.radius.value
+                    qr = query.radius.value
                     overlap = r + qr - p.angle(q) * scenario.EARTH_RADIUS_M
                     self.assertGreater(overlap, 0, "An actually intersecting OIR is required")
                     self.assertLess(overlap, 1, "Only a narrow near-boundary overlap is expected")
