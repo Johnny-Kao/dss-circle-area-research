@@ -2,13 +2,22 @@
 
 Input is JSONL from an arbitrary version-oracle adapter. Candidates are
 generated without baseline implementation details; oracle results must provide
-name, primary, query, radius, old_hit, fixed_hit.
+name, caseIndex, and the domain-specific witness payload. Verdicts may use
+baseline_correct/candidate_correct, or the legacy old_hit/fixed_hit adapter.
 """
 
 import argparse
 import json
 import sys
 from pathlib import Path
+
+
+def is_diagnostic(record):
+    """Baseline violates the independent contract, fixed candidate satisfies it."""
+    if "baseline_correct" in record and "candidate_correct" in record:
+        return not record["baseline_correct"] and record["candidate_correct"]
+    # Backward-compatible schema for the circular OIR search adapter.
+    return not record["old_hit"] and record["fixed_hit"]
 
 
 def select_witnesses(lines):
@@ -18,12 +27,15 @@ def select_witnesses(lines):
         record = json.loads(line)
         name = record["name"]
         counts[name] = counts.get(name, 0) + 1
-        if not record["old_hit"] and record["fixed_hit"] and name not in selected:
+        if is_diagnostic(record) and name not in selected:
+            verdict_fields = {
+                "baseline_correct",
+                "candidate_correct",
+                "old_hit",
+                "fixed_hit",
+            }
             selected[name] = {
-                "radius": record["radius"],
-                "primary": record["primary"],
-                "query": record["query"],
-                "caseIndex": record["caseIndex"],
+                key: value for key, value in record.items() if key not in verdict_fields
             }
     return selected, counts
 

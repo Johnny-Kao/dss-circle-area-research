@@ -8,6 +8,8 @@ on:
       - 'research/monitoring/differential_s2_cover_oracle.go'
       - 'research/monitoring/select_differential_witnesses.py'
       - 'research/monitoring/differential_oracle_summary.py'
+      - 'research/monitoring/test_differential_fixture.py'
+      - 'research/monitoring/differential_witnesses.json'
       - '.github/workflows/pr1911-differential-fixture.yml'
 permissions:
   contents: read
@@ -21,6 +23,8 @@ jobs:
         with:
           go-version: '1.25'
           cache: false
+      - name: Validate geometry and witness-selection invariants
+        run: uv run --with s2sphere python -m unittest discover -s research/monitoring -p 'test_differential_fixture.py' -v
       - name: Generate independent edge and corner boundary candidates
         run: |
           uv run --with s2sphere python research/monitoring/differential_fixture_candidates.py --mode edge --max-per-area 160 > /tmp/edges.jsonl
