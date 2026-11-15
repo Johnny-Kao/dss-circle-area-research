@@ -1,4 +1,4 @@
-"""DSS circular OIR search: boundary and ordinary positive-overlap checks."""
+"""Test discovery of registered circular OIRs through the DSS search API."""
 
 from datetime import UTC, datetime, timedelta
 from itertools import product
@@ -29,13 +29,13 @@ from monitoring.uss_qualifier.suites.suite import ExecutionContext
 
 
 class FixtureUnavailable(Exception):
-    """Configured Planning Area cannot hold a valid search fixture."""
+    """No valid overlapping query can be placed within the planning area."""
 
 
 class OIRCircleOverlap(TestScenario):
-    """Verify that genuine circular OIR overlaps are discoverable."""
+    """Check discovery of operational intent references through circular queries."""
 
-    OIR_TYPE = register_resource_type(407, "Circular overlap operational intent")
+    OIR_TYPE = register_resource_type(407, "Circular overlap operational intent reference")
     EARTH_RADIUS_M = 6371010.0
     CELL_LEVEL = 13
     QUERY_RADIUS_M = 1.0
@@ -52,7 +52,7 @@ class OIRCircleOverlap(TestScenario):
     ):
         super().__init__()
         self._dss = dss.get_instance(
-            {Scope.StrategicCoordination: "create and query OIRs"}
+            {Scope.StrategicCoordination: "create and query operational intent references"}
         )
         self._participants = [self._dss.participant_id]
         self._oir_id = id_generator.id_factory.make_id(self.OIR_TYPE)
@@ -71,7 +71,7 @@ class OIRCircleOverlap(TestScenario):
 
     @classmethod
     def _circle_in_cell(cls, cell, center, radius):
-        """Certify the entire spherical cap is in a convex S2 cell."""
+        """Check that the entire query circle is contained within an S2 cell."""
         if not cell.contains(center):
             return False
         clearance = sin(radius / cls.EARTH_RADIUS_M)
@@ -92,6 +92,7 @@ class OIRCircleOverlap(TestScenario):
 
     @classmethod
     def _fits(cls, center, radius, volume, reference):
+        """Check whether a candidate circle fits within the planning area."""
         if volume.outline_circle is not None:
             source = volume.outline_circle
             center_point = s2sphere.LatLng.from_degrees(
@@ -114,6 +115,7 @@ class OIRCircleOverlap(TestScenario):
 
     @staticmethod
     def _altitudes(area):
+        """Choose an altitude interval inside the configured planning area."""
         low = area.altitude_lower_wgs84_m() if area.altitude_lower else None
         high = area.altitude_upper_wgs84_m() if area.altitude_upper else None
         if low is None and high is None:
@@ -127,6 +129,7 @@ class OIRCircleOverlap(TestScenario):
         return low + (high - low) / 4, high - (high - low) / 4
 
     def _fixtures(self, volume):
+        """Build genuine circle overlaps without assuming a DSS index design."""
         bounds = self._planning_area.get_extents()
         lat = (bounds.lat_min + bounds.lat_max) / 2
         lng = (bounds.lng_min + bounds.lng_max) / 2
@@ -145,6 +148,8 @@ class OIRCircleOverlap(TestScenario):
             cid = self._cell(sample)
             cells[cid.id()] = cid
 
+        # S2 cell edges guide test placement only; DSS behavior is checked via
+        # the API against the actual circular overlap.
         fixtures = []
         for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
@@ -209,6 +214,7 @@ class OIRCircleOverlap(TestScenario):
         )
 
     def _check_found(self, name, circle, start, end, alt0, alt1):
+        """Verify that a positive search result includes the registered OIR."""
         query = Volume4D.from_values(
             t0=start, t1=end, alt0=alt0, alt1=alt1, circle=circle
         ).to_f3548v21()
