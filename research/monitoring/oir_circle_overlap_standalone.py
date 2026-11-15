@@ -140,104 +140,112 @@ class OIRCircleOverlap(TestScenario):
         return low + (high - low) / 4, high - (high - low) / 4
 
     def _fixtures(self, volume):
+        """Choose distinct S2 edges and cells, independent of DSS internals."""
         bounds = self._planning_area.get_extents()
-        lat = (bounds.lat_min + bounds.lat_max) / 2
-        lng = (bounds.lng_min + bounds.lng_max) / 2
-        reference = s2sphere.LatLng.from_degrees(lat, lng)
+        center_lat = (bounds.lat_min + bounds.lat_max) / 2
+        center_lng = (bounds.lng_min + bounds.lng_max) / 2
+        reference = s2sphere.LatLng.from_degrees(center_lat, center_lng)
         direction = reference.to_point()
         candidate_cells = {}
-        for x in self.SAMPLE_FRACTIONS:
-            for y in self.SAMPLE_FRACTIONS:
-                sample = s2sphere.LatLng.from_degrees(
-                    bounds.lat_min + (bounds.lat_max - bounds.lat_min) * x,
-                    bounds.lng_min + (bounds.lng_max - bounds.lng_min) * y,
+        for fraction_lat in self.SAMPLE_FRACTIONS:
+            for fraction_lng in self.SAMPLE_FRACTIONS:
+                point = s2sphere.LatLng.from_degrees(
+                    bounds.lat_min + (bounds.lat_max - bounds.lat_min) * fraction_lat,
+                    bounds.lng_min + (bounds.lng_max - bounds.lng_min) * fraction_lng,
                 ).to_point()
-                cell_id = self._cell(sample)
+                cell_id = self._cell(point)
                 candidate_cells[cell_id.id()] = cell_id
 
         fixtures = []
-        for cell_id in sorted(candidate_cells.values(), key=lambda c: c.id()):
-            cell = s2sphere.Cell(cell_id)
-            neighbors = set(cell_id.get_edge_neighbors())
-            for edge in range(4):
-                a, b = cell.get_vertex(edge), cell.get_vertex((edge + 1) % 4)
+        used_cells = set()
+        # One fixture per edge orientation, in a different cell each time.
+        # Do not mistake multiple radii at the same boundary for coverage.
+        for edge in range(4):
+            selected = None
+            for cell_id in sorted(candidate_cells.values(), key=lambda c: c.id()):
+                if cell_id.id() in used_cells:
+                    continue
+                cell = s2sphere.Cell(cell_id)
+                a = cell.get_vertex(edge)
+                b = cell.get_vertex((edge + 1) % 4)
                 inward = a.cross_prod(b).normalize()
                 if inward.dot_prod(cell.get_center()) < 0:
                     inward = -inward
-                boundary = (direction - inward * inward.dot_prod(direction)).normalize()
-                if abs(a.angle(boundary) + boundary.angle(b) - a.angle(b)) > 1e-7:
-                    boundary = (a + b).normalize()
-
-                # Vary position and overlap depth without referencing the
-                # implementation's old approximation.
+                projected = (direction - inward * inward.dot_prod(direction)).normalize()
+                if abs(a.angle(projected) + projected.angle(b) - a.angle(b)) > 1e-7:
+                    projected = (a + b).normalize()
                 positions = (
-                    boundary,
+                    projected,
                     (a + b).normalize(),
                     (a * 3 + b).normalize(),
                     (a + b * 3).normalize(),
                 )
+                neighbors = set(cell_id.get_edge_neighbors())
                 for position in positions:
                     for radius in self.OIR_RADII_M:
                         for depth in self.OVERLAP_DEPTHS_M:
-                            y = self.QUERY_RADIUS_M + 0.01
-                            x = radius - depth - 0.01
-                            primary = self._move(position, inward, x)
-                            query = self._move(position, -inward, y)
+                            primary = self._move(position, inward, radius - depth - 0.01)
+                            query = self._move(
+                                position, -inward, self.QUERY_RADIUS_M + 0.01
+                            )
                             query_cell = self._cell(query)
                             if (
                                 self._cell(primary) != cell_id
                                 or query_cell not in neighbors
-                            ):
-                                continue
-                            if not self._circle_in_cell(
-                                s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
-                            ):
-                                continue
-                            if not (
-                                self._fits(primary, radius, volume, reference)
-                                and self._fits(
+                                or not self._circle_in_cell(
+                                    s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
+                                )
+                                or not self._fits(primary, radius, volume, reference)
+                                or not self._fits(
                                     query, self.QUERY_RADIUS_M, volume, reference
                                 )
                             ):
                                 continue
                             overlap = (
-                                radius
-                                + self.QUERY_RADIUS_M
+                                radius + self.QUERY_RADIUS_M
                                 - primary.angle(query) * self.EARTH_RADIUS_M
                             )
                             if abs(overlap - depth) > 0.001:
                                 continue
-                            fixtures.append(
-                                (
-                                    Circle.from_meters(*self._latlng(primary), radius),
-                                    Circle.from_meters(
-                                        *self._latlng(query), self.QUERY_RADIUS_M
-                                    ),
-                                )
-                            )
-                            self.record_note(
-                                "fixture_constructed",
-                                f"radius_m={radius}; overlap_m={overlap:.3f}; "
-                                f"cell={cell_id.id()}",
-                            )
-                            if len(fixtures) == self.MAX_FIXTURES:
-                                return fixtures
-        if fixtures:
-            return fixtures
-        raise FixtureUnavailable(
-            f"No valid cross-cell circular overlap within {bounds}"
-        )
+                            selected = (cell_id, radius, overlap, primary, query)
+                            break
+                        if selected is not None:
+                            break
+                    if selected is not None:
+                        break
+                if selected is not None:
+                    break
+
+            if selected is None:
+                continue
+            cell_id, radius, overlap, primary, query = selected
+            used_cells.add(cell_id.id())
+            fixtures.append(
+                (
+                    Circle.from_meters(*self._latlng(primary), radius),
+                    Circle.from_meters(*self._latlng(query), self.QUERY_RADIUS_M),
+                )
+            )
+            self.record_note(
+                "fixture_constructed",
+                f"cell={cell_id.id()}; edge={edge}; "
+                f"radius_m={radius}; overlap_m={overlap:.3f}",
+            )
+
+        if len(fixtures) < 2:
+            raise FixtureUnavailable(
+                "Need two distinct S2 edge directions and cells within "
+                f"PlanningAreaResource {bounds}; found {len(fixtures)}"
+            )
+        return fixtures
 
     def run(self, context: ExecutionContext):
         self.begin_test_scenario(context)
         volume = self._planning_area.resolved_volume4d_with_times(None, None).volume
-        try:
-            alt0, alt1 = self._altitudes(volume)
-            fixtures = self._fixtures(volume)
-        except FixtureUnavailable as e:
-            self.record_note("test_inapplicable", str(e))
-            self.end_test_scenario()
-            return
+        # An unusable Planning Area is a test-configuration execution error,
+        # never a passing DSS conformance result.
+        alt0, alt1 = self._altitudes(volume)
+        fixtures = self._fixtures(volume)
         self.begin_test_case("Setup")
         self.begin_test_step("Clear previous test OIR")
         test_step_fragments.cleanup_op_intent(self, self._dss, self._oir_id)
