@@ -2,19 +2,18 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment', 'research/pr1911-direct-s2-boundary', 'research/pr1911-contract-first-fixture', 'research/pr1911-diagnostic-design', 'research/pr1911-no20-validation', 'research/pr1911-differential-fixture-finder']
+    branches: ['research/pr1911-integrated-ci']
     paths:
-      - 'research/monitoring/oir_circle_overlap_review.py'
-      - 'research/monitoring/oir_circle_overlap_contract_first.py'
-      - 'research/monitoring/oir_circle_overlap_standalone.py'
-      - 'research/monitoring/differential_witnesses.json'
-      - 'research/monitoring/inject_differential_witness.py'
-      - 'research/monitoring/oir_circle_overlap_standalone.md'
+      - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
+      - '.github/workflows/pr1911-differential-fixture.yml'
 permissions:
   contents: read
 jobs:
+  discover:
+    uses: ./.github/workflows/pr1911-differential-fixture.yml
   integration:
+    needs: discover
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -27,6 +26,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: research
+      - name: Receive same-run validated witnesses
+        uses: actions/download-artifact@v4
+        with:
+          name: pr1911-differential-evidence
+          path: research/research/monitoring/_generated
       - uses: actions/checkout@v4
         with:
           repository: interuss/monitoring
@@ -133,14 +137,13 @@ jobs:
           p.write_text(data[:a]+section+data[b:])
           print("Concave L footprint (6 vertices) with unchanged geographic bounds")
           PY
-      - name: Apply independently certified research witness (disposable checkout only)
-        if: github.ref_name == 'research/pr1911-differential-fixture-finder'
+      - name: Apply same-run diagnostic witness (disposable checkout only)
         env:
           RESEARCH_AREA: ${{ matrix.area_region }}
         run: |
           python3 research/research/monitoring/inject_differential_witness.py \
             monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py \
-            research/research/monitoring/differential_witnesses.json \
+            research/research/monitoring/_generated/witnesses.json \
             "${RESEARCH_AREA^}"
       - name: Verify real DSS API Red/Green (no infrastructure false positives)
         working-directory: monitoring

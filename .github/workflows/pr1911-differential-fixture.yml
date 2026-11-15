@@ -1,16 +1,7 @@
 name: PR1911 contract-first differential fixture discovery
 on:
+  workflow_call:
   workflow_dispatch:
-  push:
-    branches: ['research/pr1911-differential-fixture-finder']
-    paths:
-      - 'research/monitoring/differential_fixture_candidates.py'
-      - 'research/monitoring/differential_s2_cover_oracle.go'
-      - 'research/monitoring/select_differential_witnesses.py'
-      - 'research/monitoring/differential_oracle_summary.py'
-      - 'research/monitoring/test_differential_fixture.py'
-      - 'research/monitoring/differential_witnesses.json'
-      - '.github/workflows/pr1911-differential-fixture.yml'
 permissions:
   contents: read
 jobs:
