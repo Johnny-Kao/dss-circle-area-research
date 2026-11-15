@@ -26,6 +26,28 @@ Scope: **Research-only review** of `research/pr1911-maintainer-wording-polish`. 
 
 7. **The original PR description must be replaced when staging is approved.** It still asks to keep negative assertions, which the reviewer correctly found unsupported by ASTM F3548-21, and still says the complete `dss_probing` suite has not run. Update once along with the final diff; do not reply to or resolve review threads prematurely.
 
+
+## Reproduced model-sensitivity counterexample (independent calculation)
+
+Method: start from the same latitude/longitude center, place a second center **due east** at a spherical great-circle distance of `primary_radius + query_radius - depth`, using `R=6,371,010 m` (the DSS sphere). Independently measure that pair using the WGS84 ellipsoid geodesic (Python GeographicLib 2.1). A negative inferred overlap means the circles are disjoint **under that alternative earth model**, not that either implementation violated ASTM.
+
+All values below use primary radius 200 m and query radius 1 m; values are in meters.
+
+| Latitude | Spherical intended overlap | WGS84 center distance | WGS84 inferred overlap |
+|---|---:|---:|---:|
+| 35.68° (Tokyo) | 0.1 | 201.354 | -0.354 |
+| 35.68° (Tokyo) | 0.5 | 200.953 | +0.047 |
+| 47.38° (Zurich) | 0.1 | 201.490 | -0.490 |
+| 47.38° (Zurich) | 0.5 | 201.089 | -0.089 |
+| 60.17° (Helsinki) | 0.1 | 201.633 | -0.633 |
+| 60.17° (Helsinki) | 0.5 | 201.232 | -0.232 |
+| 81° | 0.1 | 201.785 | -0.785 |
+| 81° | 0.5 | 201.383 | -0.383 |
+
+**Interpretation:** The candidate's sub-meter overlaps are not robust to a plausible change of Earth-distance model. The exact applicable circle metric under ASTM F3548-21 needs confirmation; the public OpenAPI describes a circular area on the Earth's surface without resolving the sphere-versus-ellipsoid semantics in that description. Do **not** infer actual DSS noncompliance from this calculation. Rather, do not make a universal conformance claim until a deliberately conservative margin has been checked against the protocol and the historical-regression requirements.
+
+Possible precision-safe experiment (Research-only): attempt larger overlaps and/or radii with the existing Go differential oracle, then confirm real API Red/Green without adding legacy logic to the production test. Evaluate across multiple headings, not only the due-east counterexample. If the ASTM circle model is explicitly spherical, document that constraint and revise this concern accordingly.
+
 ## Smallest next research experiment
 
 Keep the production candidate unchanged. For each of the four emitted fixtures in Kentland and Stanford:
