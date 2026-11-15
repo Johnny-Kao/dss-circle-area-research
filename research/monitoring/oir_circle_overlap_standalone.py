@@ -149,8 +149,7 @@ class OIRCircleOverlap(TestScenario):
                 # sampling. Actual containment still uses the input polygon.
                 anchor = longitudes[0]
                 unwrapped = [
-                    anchor + (lng - anchor + 180) % 360 - 180
-                    for lng in longitudes
+                    anchor + (lng - anchor + 180) % 360 - 180 for lng in longitudes
                 ]
                 return LatLngBoundingBox(
                     lat_min=min(v.lat for v in vertices),
