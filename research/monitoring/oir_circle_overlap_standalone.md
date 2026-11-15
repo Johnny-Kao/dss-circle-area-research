@@ -7,12 +7,11 @@ when a small circular query genuinely overlaps its boundary. Search must return
 every overlapping reference under ASTM F3548-21 DSS0005,2; additional references
 are permitted, so this scenario does not test their absence.
 
-The scenario creates up to six circular OIRs one at a time within the
-configured PlanningAreaResource. Their small query circles overlap genuine
-circular boundaries, with cases selected from distinct spatial grid cells and
-edge directions. A PlanningAreaResource that cannot support at least two
-distinct valid cases produces a test configuration execution error rather than
-a passing conformance result.
+The scenario creates up to four circular OIRs, one at a time, within the
+configured PlanningAreaResource. Each is queried both with a 1 m circle
+overlapping its boundary and with an ordinary, well-contained circle.
+The configured area must have sufficient room for these circles; a failure
+to construct a valid fixture is a test configuration error, not a DSS pass.
 
 ## Resources
 
@@ -62,6 +61,16 @@ Search using a small circle that genuinely overlaps the registered circle near
 its boundary, with overlapping time and altitude ranges.
 
 #### ⚠️ Boundary overlap is discoverable check
+
+The overlapping OIR must be returned under
+**[astm.f3548.v21.DSS0005,2](../../../../requirements/astm/f3548/v21.md)**.
+
+### Ordinary contained circle discovers OIR test step
+
+A circle contained well inside the registered OIR, with overlapping time and
+altitude intervals, must discover that OIR.
+
+#### ⚠️ Ordinary contained circle discovers OIR check
 
 The overlapping OIR must be returned under
 **[astm.f3548.v21.DSS0005,2](../../../../requirements/astm/f3548/v21.md)**.
