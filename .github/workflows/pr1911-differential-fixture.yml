@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
+          cache: false
       - name: Generate independent edge and corner boundary candidates
         run: |
           uv run --with s2sphere python research/monitoring/differential_fixture_candidates.py --mode edge --max-per-area 160 > /tmp/edges.jsonl
@@ -30,7 +31,7 @@ jobs:
           mkdir oracle-go
           cp research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
           printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
-          (cd oracle-go && go mod download && go run .) < /tmp/candidates.jsonl > /tmp/results.jsonl
+          (cd oracle-go && go mod tidy && go run .) < /tmp/candidates.jsonl > /tmp/results.jsonl
       - name: Require demonstrated misses without 20-gon fixture generation
         run: |
           python3 research/monitoring/differential_oracle_summary.py Kentland Stanford Tokyo Zurich Helsinki Tierra Norway Arctic Antarctica < /tmp/results.jsonl
