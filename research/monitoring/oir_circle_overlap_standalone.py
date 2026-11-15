@@ -35,7 +35,9 @@ class FixtureUnavailable(Exception):
 class OIRCircleOverlap(TestScenario):
     """Check discovery of operational intent references through circular queries."""
 
-    OIR_TYPE = register_resource_type(407, "Circular overlap operational intent reference")
+    OIR_TYPE = register_resource_type(
+        407, "Circular overlap operational intent reference"
+    )
     EARTH_RADIUS_M = 6371010.0
     CELL_LEVEL = 13
     QUERY_RADIUS_M = 1.0
@@ -52,7 +54,9 @@ class OIRCircleOverlap(TestScenario):
     ):
         super().__init__()
         self._dss = dss.get_instance(
-            {Scope.StrategicCoordination: "create and query operational intent references"}
+            {
+                Scope.StrategicCoordination: "create and query operational intent references"
+            }
         )
         self._participants = [self._dss.participant_id]
         self._oir_id = id_generator.id_factory.make_id(self.OIR_TYPE)
