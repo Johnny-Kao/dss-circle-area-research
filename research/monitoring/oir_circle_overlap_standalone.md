@@ -9,8 +9,7 @@ All genuinely overlapping OIRs must be discoverable under ASTM F3548-21
 DSS0005,2; additional search results are permitted.
 
 The test places up to four circular OIRs, one at a time, relative to the
-configured PlanningAreaResource. Each OIR is queried with 1 m circles from
-several bearings. Only fixtures contained within the configured planning area
+configured PlanningAreaResource. Each OIR is queried with a 1 m circle near its boundary. Only fixtures contained within the configured planning area
 are used. A planning area that cannot support a valid fixture produces a test
 configuration execution error, not a passing DSS result.
 
@@ -68,7 +67,7 @@ The overlapping reference must be discovered under
 
 ### Ordinary contained circle discovers OIR test step
 
-A 200 m circle well inside the registered OIR, with matching time and altitude,
+An ordinary circle well inside the registered OIR, with matching time and altitude,
 must discover the OIR.
 
 #### ⚠️ Ordinary contained circle discovers OIR check
