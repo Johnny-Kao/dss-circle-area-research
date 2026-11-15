@@ -16,7 +16,7 @@ from uas_standards.astm.f3548.v21.api import (
 from uas_standards.astm.f3548.v21.constants import Scope
 
 from monitoring.monitorlib.fetch import QueryError
-from monitoring.monitorlib.geo import Circle, EARTH_CIRCUMFERENCE_M, LatLngBoundingBox
+from monitoring.monitorlib.geo import EARTH_CIRCUMFERENCE_M, Circle, LatLngBoundingBox
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.monitorlib.ids import register_resource_type
 from monitoring.monitorlib.testing import make_fake_url
