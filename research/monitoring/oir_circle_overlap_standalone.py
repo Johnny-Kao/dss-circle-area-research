@@ -5,7 +5,7 @@ are used to select an implementation-independent boundary search fixture.
 """
 
 from datetime import UTC, datetime, timedelta
-from math import cos, sin
+from math import cos, degrees, radians, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -16,7 +16,7 @@ from uas_standards.astm.f3548.v21.api import (
 from uas_standards.astm.f3548.v21.constants import Scope
 
 from monitoring.monitorlib.fetch import QueryError
-from monitoring.monitorlib.geo import Circle, flatten
+from monitoring.monitorlib.geo import Circle, LatLngBoundingBox, flatten
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.monitorlib.ids import register_resource_type
 from monitoring.monitorlib.testing import make_fake_url
@@ -139,8 +139,25 @@ class OIRCircleOverlap(TestScenario):
             raise FixtureUnavailable("No positive altitude span")
         return low + (high - low) / 4, high - (high - low) / 4
 
+    def _area_bounds(self, volume):
+        """Construct circle bounds without requiring a valid wrapped LatLngRect."""
+        if volume.outline_circle is None:
+            return self._planning_area.get_extents()
+        source = volume.outline_circle
+        latitude_span = degrees(source.radius.in_meters() / self.EARTH_RADIUS_M)
+        extreme_latitude = abs(source.center.lat) + latitude_span
+        if extreme_latitude >= 90:
+            raise FixtureUnavailable("Circle enclosing a pole has no local longitude bounds")
+        longitude_span = latitude_span / cos(radians(extreme_latitude))
+        return LatLngBoundingBox(
+            lat_min=source.center.lat - latitude_span,
+            lat_max=source.center.lat + latitude_span,
+            lng_min=source.center.lng - longitude_span,
+            lng_max=source.center.lng + longitude_span,
+        )
+
     def _fixtures(self, volume):
-        bounds = self._planning_area.get_extents()
+        bounds = self._area_bounds(volume)
         lat = (bounds.lat_min + bounds.lat_max) / 2
         lng = (bounds.lng_min + bounds.lng_max) / 2
         reference = s2sphere.LatLng.from_degrees(lat, lng)
@@ -148,9 +165,11 @@ class OIRCircleOverlap(TestScenario):
         candidate_cells = {}
         for x in self.SAMPLE_FRACTIONS:
             for y in self.SAMPLE_FRACTIONS:
+                longitude = bounds.lng_min + (bounds.lng_max - bounds.lng_min) * y
+                longitude = (longitude + 180) % 360 - 180
                 sample = s2sphere.LatLng.from_degrees(
                     bounds.lat_min + (bounds.lat_max - bounds.lat_min) * x,
-                    bounds.lng_min + (bounds.lng_max - bounds.lng_min) * y,
+                    longitude,
                 ).to_point()
                 cell_id = self._cell(sample)
                 candidate_cells[cell_id.id()] = cell_id
