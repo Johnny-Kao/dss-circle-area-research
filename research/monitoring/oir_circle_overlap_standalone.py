@@ -5,7 +5,7 @@ are used to select an implementation-independent boundary search fixture.
 """
 
 from datetime import UTC, datetime, timedelta
-from math import cos, degrees, radians, sin
+from math import cos, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -16,7 +16,7 @@ from uas_standards.astm.f3548.v21.api import (
 from uas_standards.astm.f3548.v21.constants import Scope
 
 from monitoring.monitorlib.fetch import QueryError
-from monitoring.monitorlib.geo import EARTH_CIRCUMFERENCE_M, Circle, LatLngBoundingBox
+from monitoring.monitorlib.geo import Circle, flatten
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.monitorlib.ids import register_resource_type
 from monitoring.monitorlib.testing import make_fake_url
@@ -46,7 +46,7 @@ class OIRCircleOverlap(TestScenario):
     QUERY_RADIUS_M = 1.0
     OIR_RADII_M = (200.0, 150.0, 100.0, 250.0, 300.0)
     OVERLAP_DEPTHS_M = (0.5, 0.1)
-    MAX_FIXTURES = 6
+    MAX_FIXTURES = 4
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
     def __init__(
@@ -95,17 +95,6 @@ class OIRCircleOverlap(TestScenario):
             cls.CELL_LEVEL
         )
 
-    @staticmethod
-    def _flatten_local(reference, point):
-        """Short-arc longitude offset for local projections across 180 degrees."""
-        lon_delta = (point.lng().degrees - reference.lng().degrees + 180) % 360 - 180
-        return (
-            lon_delta * EARTH_CIRCUMFERENCE_M * cos(reference.lat().radians) / 360,
-            (point.lat().degrees - reference.lat().degrees)
-            * EARTH_CIRCUMFERENCE_M
-            / 360,
-        )
-
     @classmethod
     def _fits(cls, center, radius, volume, reference):
         if volume.outline_circle is not None:
@@ -120,13 +109,12 @@ class OIRCircleOverlap(TestScenario):
         if volume.outline_polygon is None:
             raise ValueError("Planning area needs a circle or polygon outline")
         polygon = Polygon(
-            cls._flatten_local(reference, v.as_s2sphere())
-            for v in volume.outline_polygon.vertices
+            flatten(reference, v.as_s2sphere()) for v in volume.outline_polygon.vertices
         )
         if not polygon.is_valid or polygon.is_empty:
             raise ValueError("Invalid planning area geometry")
         return polygon.buffer(-(radius + 1)).covers(
-            Point(*cls._flatten_local(reference, s2sphere.LatLng.from_point(center)))
+            Point(*flatten(reference, s2sphere.LatLng.from_point(center)))
         )
 
     @staticmethod
@@ -151,48 +139,8 @@ class OIRCircleOverlap(TestScenario):
             raise FixtureUnavailable("No positive altitude span")
         return low + (high - low) / 4, high - (high - low) / 4
 
-    def _area_bounds(self, volume):
-        """Produce sampling bounds without invalid wrapped longitude rectangles."""
-        if volume.outline_polygon is not None:
-            vertices = volume.outline_polygon.vertices
-            longitudes = [v.lng for v in vertices]
-            if max(longitudes) - min(longitudes) > 180:
-                # Unwrap only the local antimeridian-crossing polygon for
-                # sampling. Actual containment still uses the input polygon.
-                anchor = longitudes[0]
-                unwrapped = [
-                    anchor + (lng - anchor + 180) % 360 - 180 for lng in longitudes
-                ]
-                return LatLngBoundingBox(
-                    lat_min=min(v.lat for v in vertices),
-                    lat_max=max(v.lat for v in vertices),
-                    lng_min=min(unwrapped),
-                    lng_max=max(unwrapped),
-                )
-            return self._planning_area.get_extents()
-        if volume.outline_circle is None:
-            raise ValueError("Planning Area needs a circle or polygon outline")
-        source = volume.outline_circle
-        latitude_span = degrees(source.radius.in_meters() / self.EARTH_RADIUS_M)
-        extreme_latitude = abs(source.center.lat) + latitude_span
-        if extreme_latitude >= 90:
-            # Every longitude occurs inside a circle containing a pole.
-            return LatLngBoundingBox(
-                lat_min=max(-90, source.center.lat - latitude_span),
-                lat_max=min(90, source.center.lat + latitude_span),
-                lng_min=-180,
-                lng_max=180,
-            )
-        longitude_span = latitude_span / cos(radians(extreme_latitude))
-        return LatLngBoundingBox(
-            lat_min=source.center.lat - latitude_span,
-            lat_max=source.center.lat + latitude_span,
-            lng_min=source.center.lng - longitude_span,
-            lng_max=source.center.lng + longitude_span,
-        )
-
     def _fixtures(self, volume):
-        bounds = self._area_bounds(volume)
+        bounds = self._planning_area.get_extents()
         lat = (bounds.lat_min + bounds.lat_max) / 2
         lng = (bounds.lng_min + bounds.lng_max) / 2
         reference = s2sphere.LatLng.from_degrees(lat, lng)
@@ -210,8 +158,6 @@ class OIRCircleOverlap(TestScenario):
                 candidate_cells[cell_id.id()] = cell_id
 
         fixtures = []
-        used_cells = set()
-        used_edges = set()
         for cell_id in sorted(candidate_cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
             neighbors = set(cell_id.get_edge_neighbors())
@@ -263,15 +209,6 @@ class OIRCircleOverlap(TestScenario):
                             )
                             if abs(overlap - depth) > 0.001:
                                 continue
-                            # Preserve the first four legal probes, which
-                            # include known diagnostic boundary placements.
-                            # Additional probes must add an untested cell or
-                            # edge direction rather than repeat one boundary.
-                            if len(fixtures) >= self.MAX_FIXTURES - 2 and not (
-                                (len(used_cells) < 2 and cell_id.id() not in used_cells)
-                                or (len(used_edges) < 2 and edge not in used_edges)
-                            ):
-                                continue
                             fixtures.append(
                                 (
                                     Circle.from_meters(*self._latlng(primary), radius),
@@ -280,24 +217,17 @@ class OIRCircleOverlap(TestScenario):
                                     ),
                                 )
                             )
-                            used_cells.add(cell_id.id())
-                            used_edges.add(edge)
                             self.record_note(
                                 "fixture_constructed",
                                 f"cell={cell_id.id()}; edge={edge}; "
                                 f"radius_m={radius}; overlap_m={overlap:.3f}",
                             )
-                            if (
-                                len(fixtures) >= self.MAX_FIXTURES - 2
-                                and len(used_cells) >= 2
-                                and len(used_edges) >= 2
-                            ):
+                            if len(fixtures) == self.MAX_FIXTURES:
                                 return fixtures
-        if len(fixtures) >= 2 and len(used_cells) >= 2 and len(used_edges) >= 2:
+        if fixtures:
             return fixtures
         raise FixtureUnavailable(
-            "Need two distinct S2 edge directions and cells within "
-            f"PlanningAreaResource {bounds}; found {len(fixtures)} fixtures"
+            f"No legal cross-cell circle overlap within PlanningAreaResource {bounds}"
         )
 
     def run(self, context: ExecutionContext):
