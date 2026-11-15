@@ -46,6 +46,40 @@ jobs:
         env:
           PYTHONPATH: .
         run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_contract.py' -v
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Export the exact selected fixture circles (not synthetic oracle cases)
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: uv run --no-sync python ../research/research/monitoring/export_oir_circle_fixtures.py > /tmp/scenario-fixtures.jsonl
+      - name: Independently verify old S2 misses and fixed S2 returns the actual fixtures
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/scenario-fixtures.jsonl > /tmp/scenario-oracle.jsonl
+          python3 - <<'PY'
+          import json
+          from collections import defaultdict
+          stats = defaultdict(lambda: [0, 0, 0])
+          with open("/tmp/scenario-oracle.jsonl", encoding="utf-8") as inp:
+              for line in inp:
+                  case = json.loads(line)
+                  row = stats[case["name"]]
+                  row[0] += 1
+                  row[1] += int(not case["old_hit"] and case["fixed_hit"])
+                  row[2] += int(case["fixed_hit"])
+          required = {"Kentland", "Stanford", "Tokyo", "Zurich", "Helsinki"}
+          assert set(stats) == required, stats
+          for area, (examined, diagnostic, fixed_hits) in sorted(stats.items()):
+              print(f"{area}: fixtures={examined}, old-miss/fixed-hit={diagnostic}, fixed-hit={fixed_hits}")
+              assert examined > 0, area
+              assert fixed_hits == examined, f"{area}: fixed geometry failed a real overlap"
+              assert diagnostic > 0, f"{area}: no diagnostic witness among actual scenario fixtures"
+          PY
       - name: Check the actual submitted scenario formatting and lint
         working-directory: monitoring
         run: |
