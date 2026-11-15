@@ -107,9 +107,11 @@ class OIRCircleOverlap(TestScenario):
 
     @classmethod
     def _cell(cls, point):
-        return s2sphere.CellId.from_lat_lng(s2sphere.LatLng.from_point(point)).parent(
-            cls.CELL_LEVEL
-        )
+        cell_id = s2sphere.CellId.from_lat_lng(
+            s2sphere.LatLng.from_point(point)
+        ).parent(cls.CELL_LEVEL)
+        assert cell_id is not None
+        return cell_id
 
     @classmethod
     def _fits(cls, center, radius, volume, reference):
@@ -137,11 +139,9 @@ class OIRCircleOverlap(TestScenario):
         """Choose an altitude interval inside the configured planning area."""
         low = area.altitude_lower_wgs84_m() if area.altitude_lower else None
         high = area.altitude_upper_wgs84_m() if area.altitude_upper else None
-        if low is None and high is None:
-            low, high = 30.0, 120.0
-        elif low is None:
-            low = high - 90.0
-        elif high is None:
+        if low is None:
+            low = high - 90.0 if high is not None else 30.0
+        if high is None:
             high = low + 90.0
         if low >= high:
             raise FixtureUnavailable("Planning Area has no positive altitude span")
@@ -317,6 +317,7 @@ class OIRCircleOverlap(TestScenario):
             self.end_test_step()
 
             self.begin_test_step("Delete circular OIR")
+            assert created_oir.ovn is not None
             oir_fragments.delete_oir_query(
                 scenario=self,
                 dss=self._dss,
