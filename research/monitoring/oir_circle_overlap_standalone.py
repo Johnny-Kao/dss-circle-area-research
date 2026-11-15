@@ -301,7 +301,7 @@ class OIRCircleOverlap(TestScenario):
             control = Circle.from_meters(
                 primary.center.lat,
                 primary.center.lng,
-                min(200.0, primary.radius.in_meters() / 2),
+                50.0,
             )
             self._assert_found(
                 control,
