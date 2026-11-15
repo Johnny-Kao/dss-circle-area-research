@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-maintainer-ready-cleanup']
+    branches: ['research/pr1911-final-gap-validation']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -25,6 +25,10 @@ jobs:
           - {variant: fixed, area_region: stanford, area_shape: rectangle}
           - {variant: fixed, area_region: kentland, area_shape: concave_l}
           - {variant: fixed, area_region: stanford, area_shape: concave_l}
+          - {variant: fixed, area_region: kentland, area_shape: circle}
+          - {variant: fixed, area_region: arctic, area_shape: circle}
+          - {variant: fixed, area_region: antarctica, area_shape: circle}
+          - {variant: fixed, area_region: kentland, area_shape: tiny_circle}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -97,6 +101,8 @@ jobs:
               "zurich": (47.38000, 8.54000),
               "helsinki": (60.17000, 24.94000),
               "stanford": (37.43000, -122.17000),
+              "arctic": (81.00000, -5.00000),
+              "antarctica": (-75.00000, 110.00000),
           }
           label = os.environ["AREA_REGION"]
           target_lat, target_lng = centers[label]
@@ -136,6 +142,40 @@ jobs:
           p.write_text(data[:a]+section+data[b:])
           print("Concave L footprint (6 vertices) with unchanged geographic bounds")
           PY
+      - name: Create circular PlanningAreaResource fixture
+        if: matrix.area_shape == 'circle' || matrix.area_shape == 'tiny_circle'
+        env:
+          CIRCLE_SHAPE: ${{ matrix.area_shape }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          start = data.index("        planning_area_volume:\n")
+          finish = data.index("        planning_area:\n", start)
+          block = data[start:finish]
+          coords = re.findall(r"- lat: (-?\d+\.\d+)\s+lng: (-?\d+\.\d+)", block)
+          assert len(coords) == 4, coords
+          center_lat = sum(float(a) for a, _ in coords) / 4
+          center_lng = sum(float(b) for _, b in coords) / 4
+          radius = 2000 if os.environ["CIRCLE_SHAPE"] == "circle" else 25
+          prefix, rest = block.split("              outline_polygon:\n", 1)
+          altitude = "              altitude_lower:\n" + rest.split("              altitude_lower:\n", 1)[1]
+          circle = (
+              "              outline_circle:\n"
+              "                center:\n"
+              f"                  lat: {center_lat:.9f}\n"
+              f"                  lng: {center_lng:.9f}\n"
+              "                radius:\n"
+              f"                  value: {radius}\n"
+              "                  units: M\n"
+          )
+          p.write_text(data[:start] + prefix + circle + altitude + data[finish:])
+          print(f"Configured circle PlanningAreaResource with radius={radius} m")
+          PY
       - name: Verify real DSS API Red/Green (no infrastructure false positives)
         working-directory: monitoring
         env:
@@ -151,6 +191,14 @@ jobs:
           set -e
           echo "variant=$VARIANT area_region=${{ matrix.area_region }} area_shape=${{ matrix.area_shape }} qualifier_exit=$status"
           tail -100 /tmp/old-red.log
+          if [ "${{ matrix.area_shape }}" = tiny_circle ]; then
+            test "$status" -ne 0
+            grep -q "Execution error in scenario" /tmp/old-red.log
+            grep -q "FixtureUnavailable" /tmp/old-red.log
+            ! grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "EXPECTED CONFIGURATION ERROR: no fixture is NOT a DSS PASS"
+            exit 0
+          fi
           if grep -q "Execution error in scenario" /tmp/old-red.log; then
             echo "FAIL: scenario execution error, not a meaningful regression signal"
             exit 1
@@ -159,10 +207,16 @@ jobs:
             echo "FAIL: Planning Area is not applicable; no DSS conclusion"
             exit 1
           fi
-          if ! grep -q "Note: fixture_constructed" /tmp/old-red.log; then
-            echo "FAIL: no evidence of valid boundary fixture"
-            exit 1
-          fi
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          log = Path("/tmp/old-red.log").read_text()
+          cases = re.findall(r"Note: fixture_constructed[^\n]*cell=(\d+); edge=(\d+)", log)
+          assert len(cases) >= 2, f"Too few valid fixtures: {cases}"
+          assert len({cell for cell, _ in cases}) >= 2, f"Same cell: {cases}"
+          assert len({edge for _, edge in cases}) >= 2, f"Same edge: {cases}"
+          print(f"Diverse fixtures verified: {len(cases)} across different cells and edges")
+          PY
           if [ "$VARIANT" = old ]; then
             test "$status" -ne 0
             grep -q "Overlapping OIR was missing" /tmp/old-red.log
