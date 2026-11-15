@@ -1,5 +1,10 @@
 # PR #1911 — Scenario cleanup and conformance review (2026-11-15)
 
+> **Latest status (final Research gap closure):** The earlier "Residual limitations"
+> section below is a historical checkpoint and is superseded by the verified
+> 12/12 Research CI results in the addendum at the end of this document.
+>
+
 ## Scope of this review
 
 Review target: the **standalone Monitoring scenario and its documentation**, `oir_circle_overlap_standalone.py` and `oir_circle_overlap_standalone.md`. The historical 20-vertex polygon and baseline/fixed index comparator are **Research CI only**, never a rule for the system under test.
@@ -49,3 +54,16 @@ The scenario is a **targeted regression for one F3548-21 DSS search requirement*
 5. **Historical diagnostic guarantee:** the four dynamic test fixtures expose the old false negative in the two actual API regions tested, but not necessarily in every possible PlanningArea. Research comparator remains a separate, cheap diagnostic-strength study.
 
 **Decision: Research implementation is contract-aligned and demonstrated end-to-end for tested settings. Staging/Upstream readiness is conditional on (2) and the maintainer's preference for handling inapplicable areas; no writes to Staging or Upstream have occurred.**
+
+## Final Research gap closure — 2026-11-15
+
+- Branch: `research/pr1911-final-gap-validation`
+- Final verification: [12/12 successful GitHub Actions jobs](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43691554733), tested code commit `d264cea085f6d0a9bbc690a6768418681db8c119`.
+- Old DSS: Kentland and Stanford produce the expected positive-overlap false negative; corrected DSS finds both.
+- Corrected DSS: rectangles (Kentland, Stanford), concave-L polygons (Kentland, Stanford), circular Planning Areas (Kentland, Arctic 81°N, Antarctica 75°S), and an explicitly antimeridian-crossing circular area at 10°N / 179.99°E all pass.
+- Too-small (25 m) circular Planning Area: scenario reports an **execution/configuration error** due to unavailable legal fixtures. CI verifies that this cannot be mistaken for a successful DSS conformance test.
+- Fixture set: preserves the earliest four legal boundary probes to retain known regression sensitivity; when needed, adds up to two probes to verify at least two **distinct S2 Cells** and **distinct boundary-edge directions**. Selection has no 20-gon logic.
+- A previously untested limitation was found in Monitoring's `Volume4D.rect_bounds` / `PlanningAreaResource.get_extents` for a circle crossing the antimeridian: an invalid wrapped `LatLngRect` leads to `AssertionError`. The Research scenario avoids this *for circular Planning Areas* by using center/radius spherical bounds and normalizing sampled longitudes. No change to the underlying Monitoring library or upstream repository was made.
+- The main scenario is now ~345 physical Python lines, including comments and blank lines. Re-evaluate this maintenance cost before promoting to Staging/Upstream.
+
+**Remaining scope boundaries:** This focused scenario validates one positive OIR-search requirement, not full ASTM F3548-21 conformance. Circles that actually enclose a geographic pole are treated as unsupported test configurations; cross-antimeridian *polygon* Planning Areas have not been validated. No fixed set of finite boundary probes can guarantee exposure of every historical implementation defect in every possible Planning Area. No Staging or Upstream writes were performed.
