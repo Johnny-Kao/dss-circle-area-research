@@ -1,0 +1,174 @@
+name: PR1911 Full ASTM DSS Probing acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-full-dss-probing-acceptance']
+    paths:
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.md'
+      - '.github/workflows/pr1911-full-dss-probing-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  full-probing:
+    name: Native complete dss_probing (${{ matrix.mode }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, candidate]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/dss
+          ref: staging/pr-1914-review-final
+          path: fixed-dss
+      - name: Build verified corrected DSS
+        run: docker build --tag local/dss:pr1914-fixed fixed-dss
+
+      - name: Prepare native Suite, candidate registration and full-suite resource mapping
+        env:
+          ACCEPTANCE_MODE: ${{ matrix.mode }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          root = Path("monitoring/monitoring/uss_qualifier")
+          suite_path = root / "suites/astm/utm/dss_probing.yaml"
+          suite = suite_path.read_text()
+          scenario_name = "scenarios.astm.utm.dss.OIRCircleOverlap"
+          assert scenario_name not in suite, "Expected clean upstream baseline"
+          initial_scenarios = suite.count("  - test_scenario:")
+
+          if os.environ["ACCEPTANCE_MODE"] == "candidate":
+              scenario = root / "scenarios/astm/utm/dss"
+              research = Path("research/research/monitoring")
+              (scenario / "oir_circle_overlap.py").write_text(
+                  (research / "oir_circle_overlap_standalone.py").read_text()
+              )
+              (scenario / "oir_circle_overlap.md").write_text(
+                  (research / "oir_circle_overlap_standalone.md").read_text()
+              )
+              registry = scenario / "__init__.py"
+              registry.write_text(
+                  registry.read_text()
+                  + "from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n"
+              )
+              ids = Path("monitoring/monitoring/monitorlib/ids.py")
+              original_ids = ids.read_text()
+              assert "# Next code: 406" in original_ids
+              ids.write_text(original_ids.replace("# Next code: 406", "# Next code: 408", 1))
+
+              anchor = (
+                  "  - test_scenario:\n"
+                  "      scenario_type: scenarios.astm.utm.dss.OIRValidation\n"
+              )
+              assert suite.count(anchor) == 1
+              suite = suite.replace(
+                  anchor,
+                  (
+                      "  - test_scenario:\n"
+                      f"      scenario_type: {scenario_name}\n"
+                      "      resources:\n"
+                      "        dss: dss\n"
+                      "        id_generator: id_generator\n"
+                      "        planning_area: planning_area\n"
+                  ) + anchor,
+                  1,
+              )
+              suite_path.write_text(suite)
+
+          expected = initial_scenarios + (os.environ["ACCEPTANCE_MODE"] == "candidate")
+          assert suite.count("  - test_scenario:") == expected
+          assert suite.count(scenario_name) == int(os.environ["ACCEPTANCE_MODE"] == "candidate")
+          assert initial_scenarios >= 20, "This must remain the complete probing suite"
+
+          config = root / "configurations/dev/f3548_self_contained.yaml"
+          s = config.read_text()
+          begin = s.index("        suite_type: suites.astm.utm.f3548_21\n")
+          end = s.index("    # When a test run is executed", begin)
+          full_suite = (
+              "        suite_type: suites.astm.utm.dss_probing\n"
+              "        resources:\n"
+              "          dss: dss\n"
+              "          utm_client_identity: utm_client_identity\n"
+              "          second_utm_auth: second_utm_auth\n"
+              "          all_dss_instances: dss_instances\n"
+              "          shared_asset_coordinator: shared_asset_coordinator\n"
+              "          flight_intents: non_conflicting_flights\n"
+              "          id_generator: id_generator\n"
+              "          planning_area: planning_area\n"
+              "          problematically_big_area: problematically_big_area\n\n"
+          )
+          s = s[:begin] + full_suite + s[end:]
+          assert "      stop_fast: true" in s
+          s = s.replace("      stop_fast: true", "      stop_fast: false", 1)
+          assert "  validation:\n" in s
+          s = s.split("  validation:\n", 1)[0]
+          s += (
+              "  validation:\n"
+              "    criteria:\n"
+              "      - applicability:\n"
+              "          test_scenarios: {}\n"
+              "        pass_condition:\n"
+              "          each_element:\n"
+              "            has_execution_error: false\n"
+              "      - applicability:\n"
+              "          failed_checks:\n"
+              "            has_severity:\n"
+              "              higher_than: Low\n"
+              "        pass_condition:\n"
+              "          elements:\n"
+              "            count:\n"
+              "              equal_to: 0\n"
+          )
+          config.write_text(s)
+          print(
+              f"NATIVE FULL DSS PROBING: {initial_scenarios} existing test scenarios"
+              f" + {expected-initial_scenarios} new; mode={os.environ['ACCEPTANCE_MODE']}"
+          )
+          PY
+
+      - name: Run entire native ASTM F3548-21 dss_probing Suite on local mock DSS
+        working-directory: monitoring
+        env:
+          CONFIG_NAME: configurations.dev.f3548_self_contained
+          CI: 'true'
+          DSS_IMAGE: local/dss:pr1914-fixed
+          ACCEPTANCE_MODE: ${{ matrix.mode }}
+        shell: bash
+        run: |
+          set +e
+          make -C monitoring/uss_qualifier test > /tmp/pr1911-full-dss-probing.log 2>&1
+          status=$?
+          set -e
+          echo "mode=$ACCEPTANCE_MODE full_dss_probing_exit=$status"
+          tail -180 /tmp/pr1911-full-dss-probing.log
+          # Report actual test exit; baseline and candidate are compared separately.
+          exit "$status"
+
+      - name: Preserve complete logs and structured reports for attribution
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr1911-full-dss-probing-${{ matrix.mode }}
+          path: |
+            /tmp/pr1911-full-dss-probing.log
+            monitoring/monitoring/uss_qualifier/output
+            monitoring/logs
+            monitoring/monitoring/mock_uss/output
+          if-no-files-found: ignore
