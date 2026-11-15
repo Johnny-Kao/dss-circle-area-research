@@ -14,6 +14,12 @@ jobs:
         with:
           go-version: '1.25'
           cache: false
+      - name: Lint and format-check standalone scenario against Monitoring conventions
+        run: |
+          uvx ruff check --select E4,E7,E9,F,I,UP --target-version py314 \
+            --config 'lint.isort.known-first-party=["monitoring"]' \
+            research/monitoring/oir_circle_overlap_standalone.py
+          uvx ruff format --check research/monitoring/oir_circle_overlap_standalone.py
       - name: Validate geometry and witness-selection invariants
         run: uv run --with s2sphere python -m unittest discover -s research/monitoring -p 'test_differential_fixture.py' -v
       - name: Generate independent edge and corner boundary candidates

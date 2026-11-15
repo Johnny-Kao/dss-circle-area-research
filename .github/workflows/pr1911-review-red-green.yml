@@ -18,9 +18,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [old, fixed]
-        area_region: [kentland, stanford]
-        area_shape: [rectangle]
+        include:
+          - {variant: old, area_region: kentland, area_shape: rectangle}
+          - {variant: fixed, area_region: kentland, area_shape: rectangle}
+          - {variant: old, area_region: stanford, area_shape: rectangle}
+          - {variant: fixed, area_region: stanford, area_shape: rectangle}
+          - {variant: fixed, area_region: kentland, area_shape: concave_l}
+          - {variant: fixed, area_region: stanford, area_shape: concave_l}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
