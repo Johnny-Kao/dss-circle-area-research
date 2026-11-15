@@ -26,10 +26,10 @@ Date: 2026-11-16 JST. Scope: Research only; neither Staging nor Upstream was mod
 
 ## Reproducible gates
 - [Contract acceptance run 43732525960](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43732525960) — passed: 5/5 behavioral/fault-injection unit tests, all 20/20 **actual selected** cross-implementation Go S2 diagnostic fixtures (4/4 each in Kentland, Stanford, Tokyo, Zurich, Helsinki), Ruff format/lint, and native Monitoring scenario-doc validation.
-- [Actual DSS API run 43732530726](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43732530726) — verify completion before accepting the simplification. Required: old Kentland/Stanford reliably RED due to missing overlap; fixed Kentland rectangle/concave-L/circle and Stanford rectangle GREEN.
+- [Actual DSS API run 43732530726](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43732530726) — **PASS (7/7 jobs)**: old DSS Kentland and Stanford both `RED CONFIRMED` due to missing overlapping OIR; fixed DSS Kentland rectangle, concave-L, circle and Stanford rectangle all `GREEN CONFIRMED`; independent fixture discovery passed.
 
 ## Limitations / release gate
 - Exact behavior across other DSS geographic models was not established. The 0.1m/0.5m overlap margins are narrow; do not claim universal ellipsoidal robustness.
 - The native full `dss_probing` earlier had **existing** DSS0300 public-addressability failures in Docker mock environments for both Baseline and Candidate. Targeted passing gates do not imply a clean full-suite exit.
 - The upstream PR description and unresolved review threads still refer to an older candidate, and will require an authorized, cohesive update.
-- **Acceptance rule:** adopt this Research change only if the real DSS API matrix remains fully green; otherwise retain the verified 337-line candidate and do not propagate this branch.
+- **Decision: ACCEPT the 334-line Research candidate for Staging preparation.** All acceptance gates passed without any additional original-DSS regression. Do **not** change Staging/Upstream without a separate user authorization.
