@@ -61,7 +61,6 @@ class OIRCircleOverlap(TestScenario):
         self._participants = [self._dss.participant_id]
         self._oir_id = id_generator.id_factory.make_id(self.OIR_TYPE)
         self._planning_area = planning_area
-        self._created_oir = None
 
     @staticmethod
     def _move(origin, tangent, meters):
@@ -117,9 +116,7 @@ class OIRCircleOverlap(TestScenario):
         """Check whether a candidate circle fits within the planning area."""
         if volume.outline_circle is not None:
             source = volume.outline_circle
-            center_point = s2sphere.LatLng.from_degrees(
-                source.center.lat, source.center.lng
-            ).to_point()
+            center_point = source.center.as_s2sphere().to_point()
             return (
                 center.angle(center_point) * cls.EARTH_RADIUS_M + radius + 1
                 < source.radius.in_meters()
@@ -190,47 +187,48 @@ class OIRCircleOverlap(TestScenario):
                     (a * 3 + b).normalize(),
                     (a + b * 3).normalize(),
                 )
-                for position, radius, depth in product(
-                    positions, self.OIR_RADII_M, self.OVERLAP_DEPTHS_M
-                ):
-                    primary = self._move(position, inward, radius - depth - 0.01)
+                for position in positions:
                     query = self._move(position, -inward, self.QUERY_RADIUS_M + 0.01)
                     query_cell = self._cell(query)
-                    if self._cell(primary) != cell_id or query_cell not in neighbors:
-                        continue
-                    if not self._legacy_loop_inside_cell(cell, primary, radius):
-                        continue
-                    if not self._circle_in_cell(
+                    if query_cell not in neighbors or not self._circle_in_cell(
                         s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
                     ):
                         continue
-                    if not (
-                        self._fits(primary, radius, volume, reference)
-                        and self._fits(query, self.QUERY_RADIUS_M, volume, reference)
+                    if not self._fits(query, self.QUERY_RADIUS_M, volume, reference):
+                        continue
+
+                    for radius, depth in product(
+                        self.OIR_RADII_M, self.OVERLAP_DEPTHS_M
                     ):
-                        continue
-                    overlap = (
-                        radius
-                        + self.QUERY_RADIUS_M
-                        - primary.angle(query) * self.EARTH_RADIUS_M
-                    )
-                    if abs(overlap - depth) > 0.001:
-                        continue
-                    fixtures.append(
-                        (
-                            Circle.from_meters(*self._latlng(primary), radius),
-                            Circle.from_meters(
-                                *self._latlng(query), self.QUERY_RADIUS_M
-                            ),
+                        primary = self._move(position, inward, radius - depth - 0.01)
+                        if self._cell(primary) != cell_id:
+                            continue
+                        if not self._legacy_loop_inside_cell(cell, primary, radius):
+                            continue
+                        if not self._fits(primary, radius, volume, reference):
+                            continue
+                        overlap = (
+                            radius
+                            + self.QUERY_RADIUS_M
+                            - primary.angle(query) * self.EARTH_RADIUS_M
                         )
-                    )
-                    self.record_note(
-                        "fixture_constructed",
-                        f"cell={cell_id.id()}; edge={edge}; "
-                        f"radius_m={radius}; overlap_m={overlap:.3f}",
-                    )
-                    if len(fixtures) == self.MAX_FIXTURES:
-                        return fixtures
+                        if abs(overlap - depth) > 0.001:
+                            continue
+                        fixtures.append(
+                            (
+                                Circle.from_meters(*self._latlng(primary), radius),
+                                Circle.from_meters(
+                                    *self._latlng(query), self.QUERY_RADIUS_M
+                                ),
+                            )
+                        )
+                        self.record_note(
+                            "fixture_constructed",
+                            f"cell={cell_id.id()}; edge={edge}; "
+                            f"radius_m={radius}; overlap_m={overlap:.3f}",
+                        )
+                        if len(fixtures) == self.MAX_FIXTURES:
+                            return fixtures
         if fixtures:
             return fixtures
         raise FixtureUnavailable(
@@ -288,7 +286,7 @@ class OIRCircleOverlap(TestScenario):
                 uss_base_url=make_fake_url(),
                 subscription_id=None,
             )
-            self._created_oir, _, _ = oir_fragments.create_oir_query(
+            created_oir, _, _ = oir_fragments.create_oir_query(
                 scenario=self, dss=self._dss, oir_id=self._oir_id, oir_params=params
             )
             self.end_test_step()
@@ -323,9 +321,8 @@ class OIRCircleOverlap(TestScenario):
                 scenario=self,
                 dss=self._dss,
                 oir_id=self._oir_id,
-                ovn=self._created_oir.ovn,
+                ovn=created_oir.ovn,
             )
-            self._created_oir = None
             self.end_test_step()
         self.end_test_case()
         self.end_test_scenario()
