@@ -121,7 +121,12 @@ jobs:
           assert "#### 🛑 Ordinary contained circle discovers OIR check" in docs
           print("Scenario steps, check names and maintainer wording are consistent.")
           PY
+          # A new scenario updates downstream generated suite listings.
+          # Regenerate only in the disposable Monitoring CI checkout before lint.
+          make -C monitoring/uss_qualifier format
           make -C monitoring/uss_qualifier lint
+          echo "Generated documentation changes required for upstream:"
+          git status --short -- monitoring/uss_qualifier/suites monitoring/uss_qualifier/scenarios
 
       - name: Translate planning area to geographic portability fixtures
         env:
