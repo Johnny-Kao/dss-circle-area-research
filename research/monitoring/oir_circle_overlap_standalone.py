@@ -80,7 +80,7 @@ class OIRCircleOverlap(TestScenario):
     def _fits(cls, circle, area, reference):
         """Keep the entire test circle within the actual configured footprint."""
         center = circle.center.as_s2sphere().to_point()
-        radius = circle.radius.in_meters()
+        radius = circle.radius.value
         if area.outline_circle is not None:
             outer = area.outline_circle
             midpoint = outer.center.as_s2sphere().to_point()
@@ -133,7 +133,9 @@ class OIRCircleOverlap(TestScenario):
             ):
                 continue
             fixtures.append((primary, probes))
-            self.record_note("fixture_constructed", f"pattern={index}; radius_m={radius}")
+            self.record_note(
+                "fixture_constructed", f"pattern={index}; radius_m={radius}"
+            )
         if not fixtures:
             raise FixtureUnavailable(f"No valid circle fixture fits {bounds}")
         return fixtures
@@ -197,17 +199,23 @@ class OIRCircleOverlap(TestScenario):
             for query_circle in probes:
                 self._check_found(
                     "Boundary overlap is discoverable",
-                    query_circle, start, end, alt0, alt1,
+                    query_circle,
+                    start,
+                    end,
+                    alt0,
+                    alt1,
                 )
             self.end_test_step()
 
             self.begin_test_step("Ordinary contained circle discovers OIR")
-            inside = Circle.from_meters(
-                primary.center.lat, primary.center.lng, 200.0
-            )
+            inside = Circle.from_meters(primary.center.lat, primary.center.lng, 200.0)
             self._check_found(
                 "Ordinary contained circle discovers OIR",
-                inside, start, end, alt0, alt1,
+                inside,
+                start,
+                end,
+                alt0,
+                alt1,
             )
             self.end_test_step()
 
