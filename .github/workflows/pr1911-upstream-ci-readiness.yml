@@ -49,6 +49,9 @@ jobs:
       - name: Validate native Scenario and Suite documents
         working-directory: monitoring/monitoring/uss_qualifier
         run: make lint
+      - name: Original project-wide make check-hygiene gate
+        working-directory: monitoring
+        run: make check-hygiene
       - name: Check registry import and native dss_probing suite registration
         working-directory: monitoring
         env:
