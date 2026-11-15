@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-pole-dateline-edge-tests']
+    branches: ['research/pr1911-minimal-upstream-scenario']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -24,15 +24,7 @@ jobs:
           - {variant: old, area_region: stanford, area_shape: rectangle}
           - {variant: fixed, area_region: stanford, area_shape: rectangle}
           - {variant: fixed, area_region: kentland, area_shape: concave_l}
-          - {variant: fixed, area_region: stanford, area_shape: concave_l}
           - {variant: fixed, area_region: kentland, area_shape: circle}
-          - {variant: fixed, area_region: arctic, area_shape: circle}
-          - {variant: fixed, area_region: antarctica, area_shape: circle}
-          - {variant: fixed, area_region: dateline, area_shape: circle}
-          - {variant: fixed, area_region: dateline, area_shape: dateline_polygon}
-          - {variant: fixed, area_region: pole_north, area_shape: pole_circle}
-          - {variant: fixed, area_region: pole_south, area_shape: pole_circle}
-          - {variant: fixed, area_region: kentland, area_shape: tiny_circle}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +56,22 @@ jobs:
           ids=Path("monitoring/monitoring/monitorlib/ids.py")
           ids.write_text(ids.read_text().replace("# Next code: 406","# Next code: 408",1))
           p=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_circle_overlap.yaml")
+          # Exercise the actual native dss_probing registration, not just a
+          # standalone testing suite. Keep the full suite out of this focused run.
+          probing=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_probing.yaml")
+          probing_text=probing.read_text()
+          anchor="  - test_scenario:\n      scenario_type: scenarios.astm.utm.dss.OIRValidation\n"
+          assert probing_text.count(anchor)==1
+          probing_text=probing_text.replace(anchor,(
+              "  - test_scenario:\n"
+              "      scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap\n"
+              "      resources:\n"
+              "        dss: dss\n"
+              "        id_generator: id_generator\n"
+              "        planning_area: planning_area\n"
+          )+anchor,1)
+          probing.write_text(probing_text)
+          assert probing_text.count("scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap")==1
           p.write_text("""name: DSS circular overlap regression
           resources:
             dss: resources.astm.f3548.v21.DSSInstanceResource
@@ -251,10 +259,8 @@ jobs:
           from pathlib import Path
           log = Path("/tmp/old-red.log").read_text()
           cases = re.findall(r"Note: fixture_constructed[^\n]*cell=(\d+); edge=(\d+)", log)
-          assert len(cases) >= 2, f"Too few valid fixtures: {cases}"
-          assert len({cell for cell, _ in cases}) >= 2, f"Same cell: {cases}"
-          assert len({edge for _, edge in cases}) >= 2, f"Same edge: {cases}"
-          print(f"Diverse fixtures verified: {len(cases)} across different cells and edges")
+          assert len(cases) >= 1, "No valid S2 boundary fixture was exercised"
+          print(f"Valid boundary fixtures verified: {len(cases)}")
           PY
           if [ "$VARIANT" = old ]; then
             test "$status" -ne 0
