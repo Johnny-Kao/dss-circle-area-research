@@ -39,6 +39,13 @@ jobs:
         run: |
           uv run --no-sync ruff format --check
           uv run --no-sync ruff check
+      - name: Regenerate required derived Suite docs in disposable checkout only
+        working-directory: monitoring/monitoring/uss_qualifier
+        run: |
+          ./scripts/format_test_suite_docs.sh
+          echo "Derived docs changed by registering the scenario:"
+          git status --short -- suites
+          git diff --stat -- suites
       - name: Validate native Scenario and Suite documents
         working-directory: monitoring/monitoring/uss_qualifier
         run: make lint
