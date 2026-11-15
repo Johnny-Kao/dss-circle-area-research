@@ -70,7 +70,7 @@ The overlapping reference must be discovered under
 An ordinary circle well inside the registered OIR, with matching time and altitude,
 must discover the OIR.
 
-#### ⚠️ Ordinary contained circle discovers OIR check
+#### 🛑 Ordinary contained circle discovers OIR check
 
 The overlapping reference must be discovered under
 **[astm.f3548.v21.DSS0005,2](../../../../requirements/astm/f3548/v21.md)**.
