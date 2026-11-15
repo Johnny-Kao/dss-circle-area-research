@@ -67,3 +67,20 @@ The scenario is a **targeted regression for one F3548-21 DSS search requirement*
 - The main scenario is now ~345 physical Python lines, including comments and blank lines. Re-evaluate this maintenance cost before promoting to Staging/Upstream.
 
 **Remaining scope boundaries:** This focused scenario validates one positive OIR-search requirement, not full ASTM F3548-21 conformance. Circles that actually enclose a geographic pole are treated as unsupported test configurations; cross-antimeridian *polygon* Planning Areas have not been validated. No fixed set of finite boundary probes can guarantee exposure of every historical implementation defect in every possible Planning Area. No Staging or Upstream writes were performed.
+
+## Extreme-geography verification — Research CI (2026-11-15)
+
+- [Full real-DSS CI: 15/15 jobs succeeded](https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43694054578); tested code commit `6003f26ec3add71396584ce7d83b7e5599721b25`.
+- North-pole-enclosing circle: center 89.97°N, 25°E, radius 5,000 m; fixed DSS search Green with multiple distinct S2 edge fixtures.
+- South-pole-enclosing circle: center 89.97°S, 40°W, radius 5,000 m; fixed DSS search Green.
+- Antimeridian-crossing polygon: latitude 9.985–10.015°, western/eastern vertices 179.973°E / 179.973°W (short-arc width 0.054°); fixed DSS search Green.
+- Both previous old-DSS reference configurations still reproduce the false negative (old Red); corrected reference configurations pass (fixed Green).
+- Other previously verified rectangular, concave-L, circle, high-latitude, dateline-circle, and too-small-configuration cases also passed in the same CI run.
+
+**Failure and correction traced before the passing run:**
+
+1. The pole-containing circle could not be represented by a local longitude range narrower than 360°. The scenario now samples across all longitudes while bounding latitude to [-90°, 90°], and validates each actual small OIR against the original spherical planning circle.
+2. The first cross-antimeridian polygon run constructed the correct unwrapped geographic bounds but produced zero valid fixtures because Monitoring's `flatten()` subtracts longitudes directly (e.g. +179.973° versus -179.973° as ~360°, not 0.054°). A dedicated scenario-local projection now uses the shortest signed longitude delta modulo 360, while preserving the same circumference / cosine scale as the original helper. No DSS or upstream Monitor library change was made.
+3. Synthetic input assertions verify the pole is strictly inside the selected 5,000 m circle and the polygon really crosses longitude ±180°. CI requires actual OIR creation/search and distinct edge and cell fixtures; configuration-only completion is not counted as success.
+
+**Boundaries:** These successes establish the two specified extreme-geography examples, not universal applicability to all polar polygons, huge spherical caps, giant polygons with ambiguous (>180°) longitudinal spans, or all ASTM F3548-21 requirements. The scenario code is Research-only. Staging and Upstream were not changed.
