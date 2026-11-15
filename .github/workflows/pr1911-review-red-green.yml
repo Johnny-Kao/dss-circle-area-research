@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment', 'research/pr1911-direct-s2-boundary', 'research/pr1911-contract-first-fixture', 'research/pr1911-diagnostic-design']
+    branches: ['research/pr1911-review-revision', 'research/pr1911-robust-fallback-experiment', 'research/pr1911-direct-s2-boundary', 'research/pr1911-contract-first-fixture', 'research/pr1911-diagnostic-design', 'research/pr1911-no20-validation']
     paths:
       - 'research/monitoring/oir_circle_overlap_review.py'
       - 'research/monitoring/oir_circle_overlap_contract_first.py'

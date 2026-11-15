@@ -1,7 +1,7 @@
 """DSS circular OIR boundary search — independent research candidate.
 
-DSS search correctness is judged by real 4D overlap only. An inscribed
-reference polygon is used solely to certify an adversarial test location.
+DSS search correctness is judged by real 4D overlap only. S2 Cell edges
+are used to select an implementation-independent boundary search fixture.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -167,14 +167,10 @@ class OIRCircleOverlap(TestScenario):
                     boundary = (a + b).normalize()
 
                 for radius in self.OIR_RADII_M:
-                    # Research fixture certification: inscribed 20-gon must
-                    # stay in the original cell while the true circle crosses it.
-                    # This is NOT an assertion about the DSS implementation.
-                    projected = min(
-                        inward.dot_prod(v) for v in self._ring(boundary, radius, 20)
-                    )
-                    x = max(0.0, -projected * self.EARTH_RADIUS_M) + 0.01
+                    # Place B entirely in the neighboring Cell while A crosses
+                    # the Cell boundary with 0.5 m of real circular overlap.
                     y = self.QUERY_RADIUS_M + 0.01
+                    x = radius - 0.51
                     if x + y >= radius + self.QUERY_RADIUS_M - 0.01:
                         continue
                     primary = self._move(boundary, inward, x)
@@ -185,10 +181,6 @@ class OIRCircleOverlap(TestScenario):
                     if any(
                         self._cell(point) != query_cell
                         for point in self._ring(query, self.QUERY_RADIUS_M, 24)
-                    ):
-                        continue
-                    if not all(
-                        cell.contains(v) for v in self._ring(primary, radius, 20)
                     ):
                         continue
                     if not (
@@ -205,14 +197,15 @@ class OIRCircleOverlap(TestScenario):
                         continue
                     self.record_note(
                         "fixture_constructed",
-                        f"radius_m={radius}; overlap_m={overlap:.3f}; cell={cell_id.id()}",
+                        f"radius_m={radius}; overlap_m={overlap:.3f}; "
+                        f"cell={cell_id.id()}",
                     )
                     return (
                         Circle.from_meters(*self._latlng(primary), radius),
                         Circle.from_meters(*self._latlng(query), self.QUERY_RADIUS_M),
                     )
         raise FixtureUnavailable(
-            f"No diagnostic cross-cell circular overlap within {bounds}"
+            f"No valid cross-cell circular overlap within {bounds}"
         )
 
     def run(self, context: ExecutionContext):
