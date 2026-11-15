@@ -28,6 +28,7 @@ jobs:
           - {variant: fixed, area_region: kentland, area_shape: circle}
           - {variant: fixed, area_region: arctic, area_shape: circle}
           - {variant: fixed, area_region: antarctica, area_shape: circle}
+          - {variant: fixed, area_region: dateline, area_shape: circle}
           - {variant: fixed, area_region: kentland, area_shape: tiny_circle}
     timeout-minutes: 45
     steps:
@@ -103,6 +104,7 @@ jobs:
               "stanford": (37.43000, -122.17000),
               "arctic": (81.00000, -5.00000),
               "antarctica": (-75.00000, 110.00000),
+              "dateline": (10.00000, 179.99000),
           }
           label = os.environ["AREA_REGION"]
           target_lat, target_lng = centers[label]
