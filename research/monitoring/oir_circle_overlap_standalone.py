@@ -41,8 +41,8 @@ class OIRCircleOverlap(TestScenario):
     EARTH_RADIUS_M = 6371010.0
     CELL_LEVEL = 13
     QUERY_RADIUS_M = 1.0
-    OIR_RADII_M = (300.0, 250.0, 200.0)
-    OVERLAP_DEPTHS_M = (1.5,)
+    OIR_RADII_M = (200.0, 150.0, 100.0, 250.0, 300.0)
+    OVERLAP_DEPTHS_M = (0.5, 0.1)
     MAX_FIXTURES = 4
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
