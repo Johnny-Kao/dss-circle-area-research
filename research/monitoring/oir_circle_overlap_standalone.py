@@ -171,7 +171,9 @@ class OIRCircleOverlap(TestScenario):
                 inward = a.cross_prod(b).normalize()
                 if inward.dot_prod(cell.get_center()) < 0:
                     inward = -inward
-                projected = (direction - inward * inward.dot_prod(direction)).normalize()
+                projected = (
+                    direction - inward * inward.dot_prod(direction)
+                ).normalize()
                 if abs(a.angle(projected) + projected.angle(b) - a.angle(b)) > 1e-7:
                     projected = (a + b).normalize()
                 positions = (
@@ -184,7 +186,9 @@ class OIRCircleOverlap(TestScenario):
                 for position in positions:
                     for radius in self.OIR_RADII_M:
                         for depth in self.OVERLAP_DEPTHS_M:
-                            primary = self._move(position, inward, radius - depth - 0.01)
+                            primary = self._move(
+                                position, inward, radius - depth - 0.01
+                            )
                             query = self._move(
                                 position, -inward, self.QUERY_RADIUS_M + 0.01
                             )
@@ -193,7 +197,9 @@ class OIRCircleOverlap(TestScenario):
                                 self._cell(primary) != cell_id
                                 or query_cell not in neighbors
                                 or not self._circle_in_cell(
-                                    s2sphere.Cell(query_cell), query, self.QUERY_RADIUS_M
+                                    s2sphere.Cell(query_cell),
+                                    query,
+                                    self.QUERY_RADIUS_M,
                                 )
                                 or not self._fits(primary, radius, volume, reference)
                                 or not self._fits(
@@ -202,7 +208,8 @@ class OIRCircleOverlap(TestScenario):
                             ):
                                 continue
                             overlap = (
-                                radius + self.QUERY_RADIUS_M
+                                radius
+                                + self.QUERY_RADIUS_M
                                 - primary.angle(query) * self.EARTH_RADIUS_M
                             )
                             if abs(overlap - depth) > 0.001:
