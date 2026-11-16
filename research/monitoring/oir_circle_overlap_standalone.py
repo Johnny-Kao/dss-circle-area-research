@@ -160,7 +160,7 @@ class OIRCircleOverlap(TestScenario):
         # fingerprint of the historical bug is *only* a fixture filter.
         circular = cls._circle(center, radius_m)
         point = circular.center.as_s2sphere().to_point()
-        values = (abs(point.x), abs(point.y), abs(point.z))
+        values = tuple(abs(point[i]) for i in range(3))
         tangent = [0.012, 0.0053, 0.00457]
         dominant = values.index(max(values))
         tangent[(dominant + 2) % 3] = 1.0
@@ -225,29 +225,27 @@ class OIRCircleOverlap(TestScenario):
                     for radius_m, depth_m in product(
                         self.CIRCLE_RADII_M, self.CROSSING_DEPTHS_M
                     ):
-                        oir_center = self._move(
-                            boundary, inward, radius_m - depth_m
-                        )
+                        oir_center = self._move(boundary, inward, radius_m - depth_m)
                         if self._cell(oir_center) != cell_id:
                             continue
-                        if not self._fits(
-                            oir_center, radius_m, volume, reference_ll
-                        ):
+                        if not self._fits(oir_center, radius_m, volume, reference_ll):
                             continue
                         overlap = (
                             radius_m
                             + self.QUERY_RADIUS_M
                             - oir_center.angle(query_center) * EARTH_RADIUS_M
                         )
-                        if overlap <= 0 or abs(
-                            overlap - (depth_m - self.QUERY_BOUNDARY_CLEARANCE_M)
-                        ) > 0.005:
+                        if (
+                            overlap <= 0
+                            or abs(
+                                overlap - (depth_m - self.QUERY_BOUNDARY_CLEARANCE_M)
+                            )
+                            > 0.005
+                        ):
                             continue
                         # The inscribed historic index must remain in the
                         # source cell while the real circle reaches the query.
-                        if not self._old_index_witness(
-                            oir_center, radius_m, cell_id
-                        ):
+                        if not self._old_index_witness(oir_center, radius_m, cell_id):
                             continue
                         selected[edge] = (
                             self._circle(oir_center, radius_m),
