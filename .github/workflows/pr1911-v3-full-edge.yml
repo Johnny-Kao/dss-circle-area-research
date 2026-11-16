@@ -5,6 +5,7 @@ on:
     branches: ['research/pr1911-corner-coverage-solution']
     paths:
       - 'research/monitoring/export_oir_circle_v3_full_edge.py'
+      - 'research/monitoring/evaluate_oir_v3_selection.py'
       - '.github/workflows/pr1911-v3-full-edge.yml'
 permissions:
   contents: read
@@ -73,6 +74,8 @@ jobs:
           print(f"ALL_FIVE={set(first)=={'Kentland','Stanford','Tokyo','Zurich','Helsinki'}}")
           assert set(counts)=={'Kentland','Stanford','Tokyo','Zurich','Helsinki'}
           PY
+      - name: Compare minimal four-fixture selection strategies
+        run: python3 research/research/monitoring/evaluate_oir_v3_selection.py /tmp/full-edge-fixtures.jsonl /tmp/full-edge-results.jsonl
       - uses: actions/upload-artifact@v4
         if: always()
         with:
