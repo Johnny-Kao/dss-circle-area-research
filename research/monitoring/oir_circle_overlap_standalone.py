@@ -160,9 +160,8 @@ class OIRCircleOverlap(TestScenario):
         # fingerprint of the historical bug is *only* a fixture filter.
         circular = cls._circle(center, radius_m)
         point = circular.center.as_s2sphere().to_point()
-        values = tuple(abs(point[i]) for i in range(3))
         tangent = [0.012, 0.0053, 0.00457]
-        dominant = values.index(max(values))
+        dominant = point.largest_abs_component()
         tangent[(dominant + 2) % 3] = 1.0
         y = point.cross_prod(s2sphere.Point(*tangent)).normalize()
         x = y.cross_prod(point).normalize()
