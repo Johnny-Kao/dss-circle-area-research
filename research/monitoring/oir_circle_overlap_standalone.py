@@ -213,11 +213,13 @@ class OIRCircleOverlap(TestScenario):
             if len(selected) == 4:
                 break
 
-        if not selected:
+        if len(selected) != 4:
+            missing = sorted(set(range(4)) - set(selected))
             raise FixtureUnavailable(
-                f"No valid boundary-overlap fixture in PlanningAreaResource {bounds}"
+                f"PlanningAreaResource {bounds} cannot fit all four S2 edge "
+                f"orientations; missing edges: {missing}"
             )
-        return [selected[edge] for edge in sorted(selected)]
+        return [selected[edge] for edge in range(4)]
 
     def _check_found(self, name, circle, start, end, alt0, alt1):
         query = Volume4D.from_values(
