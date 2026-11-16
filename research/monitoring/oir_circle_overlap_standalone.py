@@ -263,7 +263,15 @@ class OIRCircleOverlap(TestScenario):
         selected_sources = set()
         selected_boundaries = set()
         for prefer_distinct_sources in (True, False):
-            for source_id, edge, fraction, query_id, primary, query, overlap in candidates:
+            for (
+                source_id,
+                edge,
+                fraction,
+                query_id,
+                primary,
+                query,
+                overlap,
+            ) in candidates:
                 key = (source_id, edge, fraction)
                 if key in selected_boundaries:
                     continue
