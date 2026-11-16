@@ -4,9 +4,9 @@
 
 Tests the DSS operational intent reference search API when a small circular query genuinely overlaps a larger registered circular operational intent reference (OIR) close to its boundary.
 
-The scenario places up to four circular OIRs, one at a time, near distinct S2 cell edge directions within the configured PlanningAreaResource. A 1 m query circle overlaps each 200 m OIR by approximately 0.1 m. Their altitude and time ranges also overlap. The OIR must be returned because the 4D query intersects it. Additional search results are permitted. The scenario also performs an ordinary contained-circle query as a positive control.
+The scenario places four circular OIRs, one at a time, near distinct S2 cell edge directions within the configured PlanningAreaResource. A 1 m query circle overlaps each 200 m OIR by approximately 0.1 m. Their altitude and time ranges also overlap. The OIR must be returned because the 4D query intersects it. Additional search results are permitted. The scenario also performs an ordinary contained-circle query as a positive control.
 
-The `PlanningAreaResource` must have enough horizontal and vertical room for the fixture. If the fixture cannot be placed, the test configuration is unsuitable for this scenario rather than indicating a DSS conformance failure.
+The `PlanningAreaResource` must have enough horizontal and vertical room for all four boundary orientations. If any orientation cannot be placed, the test configuration is unsuitable for this scenario rather than indicating a DSS conformance failure.
 
 ## Resources
 
@@ -40,7 +40,7 @@ Removing a previously existing reference must succeed under **[astm.f3548.v21.DS
 
 ### Create circular OIR test step
 
-Create up to four accepted circular OIRs, one at a time, with valid time and altitude bounds.
+Create four accepted circular OIRs, one at a time, with valid time and altitude bounds.
 
 #### 🛑 Create operational intent reference query succeeds check
 
