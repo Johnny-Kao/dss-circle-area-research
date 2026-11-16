@@ -197,9 +197,7 @@ class OIRCircleOverlap(TestScenario):
                     + self.QUERY_RADIUS_M
                     - oir_center.angle(query_center) * EARTH_RADIUS_M
                 )
-                expected = (
-                    self.OIR_CROSSING_DEPTH_M - self.QUERY_BOUNDARY_CLEARANCE_M
-                )
+                expected = self.OIR_CROSSING_DEPTH_M - self.QUERY_BOUNDARY_CLEARANCE_M
                 if overlap <= 0 or abs(overlap - expected) > 0.001:
                     continue
 
