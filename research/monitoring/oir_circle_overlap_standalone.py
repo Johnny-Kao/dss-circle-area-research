@@ -47,12 +47,12 @@ class OIRCircleOverlap(TestScenario):
     QUERY_RADIUS_M = 1.0
     # Keep the overlap deliberately small so this remains a sharp boundary case.
     OIR_CROSSING_DEPTH_M = 0.11
-    QUERY_BOUNDARY_CLEARANCE_M = 0.01
+    QUERY_BOUNDARY_CLEARANCE_M = 0.001
     PLANNING_AREA_MARGIN_M = 1.0
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
     EDGE_FRACTIONS = (0.25, 0.5, 0.75)
     CIRCLE_RADII_M = (200.0, 150.0, 100.0)
-    CROSSING_DEPTHS_M = (0.11, 0.25)
+    CROSSING_DEPTHS_M = (0.11, 0.05, 0.02, 0.005)
 
     def __init__(
         self,
