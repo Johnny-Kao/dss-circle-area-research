@@ -2,7 +2,7 @@ name: PR 1911 review S2 real DSS red green
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-upstream-ci-triage']
+    branches: ['research/pr1911-circle-boundary-v2-validation']
     paths:
       - 'research/monitoring/**'
       - '.github/workflows/pr1911-review-red-green.yml'
@@ -10,10 +10,7 @@ on:
 permissions:
   contents: read
 jobs:
-  discover:
-    uses: ./.github/workflows/pr1911-differential-fixture.yml
   integration:
-    needs: discover
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -293,7 +290,7 @@ jobs:
           import re
           from pathlib import Path
           log = Path("/tmp/old-red.log").read_text()
-          cases = re.findall(r"Note: fixture_constructed[^\n]*cell=\d+; edge=\d+", log)
+          cases = re.findall(r"Note: fixture_constructed[^\n]*source_cell=\d+; query_cell=\d+; edge=\d+", log)
           assert len(cases) >= 1, f"No valid relative-position fixture was exercised"
           assert "Note: test_inapplicable" not in log
           print(f"Valid area-relative patterns verified: {len(cases)}")
