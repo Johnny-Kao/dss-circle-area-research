@@ -2,9 +2,9 @@ name: PR1911 maintainer contract acceptance
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-circle-boundary-v2-validation']
+    branches: ['research/pr1911-corner-coverage-solution']
     paths:
-      - 'research/monitoring/test_oir_circle_v2.py'
+      - 'research/monitoring/test_oir_circle_v3.py'
       - 'research/monitoring/oir_circle_overlap_standalone.py'
       - 'research/monitoring/oir_circle_overlap_standalone.md'
       - '.github/workflows/pr1911-contract-acceptance.yml'
@@ -45,7 +45,7 @@ jobs:
         working-directory: monitoring
         env:
           PYTHONPATH: .
-        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v2.py' -v
+        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v3.py' -v
       - uses: actions/setup-go@v6
         with:
           go-version: '1.25'
@@ -54,7 +54,7 @@ jobs:
         working-directory: monitoring
         env:
           PYTHONPATH: .
-        run: uv run --no-sync python ../research/research/monitoring/export_oir_circle_fixtures.py > /tmp/scenario-fixtures.jsonl
+        run: uv run --no-sync python ../research/research/monitoring/export_oir_circle_fixtures_v3.py > /tmp/scenario-fixtures.jsonl
       - name: Independently verify old S2 misses and fixed S2 returns the actual fixtures
         run: |
           mkdir oracle-go
@@ -78,7 +78,7 @@ jobs:
               print(f"{area}: fixtures={examined}, old-miss/fixed-hit={diagnostic}, fixed-hit={fixed_hits}")
               assert examined > 0, area
               assert fixed_hits == examined, f"{area}: fixed geometry failed a real overlap"
-              print(f"{area}: diagnostic_old_miss={diagnostic}/{examined}; this is observation, not an imposed guarantee")
+              assert diagnostic >= 1, f"{area}: no known-bug regression case among four true-circle orientations"
           PY
       - name: Check the actual submitted scenario formatting and lint
         working-directory: monitoring
