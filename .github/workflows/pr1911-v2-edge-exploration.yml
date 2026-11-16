@@ -6,6 +6,7 @@ on:
     paths:
       - 'research/monitoring/export_oir_circle_v2_edge_exploration.py'
       - 'research/monitoring/export_oir_circle_v2_grid_scan.py'
+      - 'research/monitoring/export_oir_circle_v2_parameter_scan.py'
       - '.github/workflows/pr1911-v2-edge-exploration.yml'
 permissions:
   contents: read
@@ -88,6 +89,35 @@ jobs:
               assert fixed==all_cases, area
           assert set(counts)=={'Kentland','Stanford','Tokyo','Zurich','Helsinki'}
           PY
+      - name: Scan radius and crossing-depth combinations with unmodified v2 fixture
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/export_oir_circle_v2_parameter_scan.py > /tmp/v2-parameters.jsonl
+          wc -l /tmp/v2-parameters.jsonl
+      - name: Compare all parameter candidates independently against old/fixed S2
+        run: (cd oracle-go && go run .) < /tmp/v2-parameters.jsonl > /tmp/v2-parameter-results.jsonl
+      - name: Identify parameter combinations that are diagnostic in every area
+        run: |
+          python3 - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+          sources=[json.loads(x) for x in Path('/tmp/v2-parameters.jsonl').read_text().splitlines()]
+          results=[json.loads(x) for x in Path('/tmp/v2-parameter-results.jsonl').read_text().splitlines()]
+          assert len(sources)==len(results)
+          areas={s['name'] for s in sources}
+          matrix=defaultdict(dict)
+          for a,b in zip(sources,results):
+              assert a['name']==b['name'] and a['caseIndex']==b['caseIndex']
+              assert b['fixed_hit'], a
+              matrix[(a['radius'],a['depth'])][a['name']]=not b['old_hit']
+          for (r,d),rows in sorted(matrix.items()):
+              print(f"radius={r:g}m depth={d:g}m old_miss={sum(rows.values())}/{len(areas)} regions: {rows}")
+          full=[(r,d) for (r,d),v in matrix.items() if len(v)==len(areas) and all(v.values())]
+          print(f"DIAGNOSTIC_ALL_FIVE={full}")
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -97,4 +127,6 @@ jobs:
             /tmp/v2-results.jsonl
             /tmp/v2-grid.jsonl
             /tmp/v2-grid-results.jsonl
+            /tmp/v2-parameters.jsonl
+            /tmp/v2-parameter-results.jsonl
           if-no-files-found: ignore
