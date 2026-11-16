@@ -1,0 +1,92 @@
+name: PR1911 adversarial witness contract
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-adversarial-witness-v4']
+    paths:
+      - 'research/monitoring/test_oir_circle_v4.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.md'
+      - '.github/workflows/pr1911-v4-contract.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - name: Stage exact candidate in disposable Monitoring checkout
+        run: |
+          cp research/research/monitoring/oir_circle_overlap_standalone.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_standalone.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("monitoring/monitoring")
+          registry = root / "uss_qualifier/scenarios/astm/utm/dss/__init__.py"
+          registry.write_text(registry.read_text() + "from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n")
+          ids = root / "monitorlib/ids.py"
+          original = ids.read_text()
+          assert "# Next code: 406" in original
+          ids.write_text(original.replace("# Next code: 406", "# Next code: 408", 1))
+          PY
+      - name: Install Monitoring dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Verify fixture and ASTM behavior (including intentional missing OIR)
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v4.py' -v
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Export the exact selected fixture circles (not synthetic oracle cases)
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: uv run --no-sync python ../research/research/monitoring/export_oir_circle_fixtures_v3.py > /tmp/scenario-fixtures.jsonl
+      - name: Independently verify old S2 misses and fixed S2 returns the actual fixtures
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/scenario-fixtures.jsonl > /tmp/scenario-oracle.jsonl
+          python3 - <<'PY'
+          import json
+          from collections import defaultdict
+          stats = defaultdict(lambda: [0, 0, 0])
+          with open("/tmp/scenario-oracle.jsonl", encoding="utf-8") as inp:
+              for line in inp:
+                  case = json.loads(line)
+                  row = stats[case["name"]]
+                  row[0] += 1
+                  row[1] += int(not case["old_hit"] and case["fixed_hit"])
+                  row[2] += int(case["fixed_hit"])
+          required = {"Kentland", "Stanford", "Tokyo", "Zurich", "Helsinki"}
+          assert set(stats) == required, stats
+          for area, (examined, diagnostic, fixed_hits) in sorted(stats.items()):
+              print(f"{area}: fixtures={examined}, old-miss/fixed-hit={diagnostic}, fixed-hit={fixed_hits}")
+              assert examined > 0, area
+              assert fixed_hits == examined, f"{area}: fixed geometry failed a real overlap"
+              assert diagnostic == 4, f"{area}: no known-bug regression case among four true-circle orientations"
+          PY
+      - name: Check the actual submitted scenario formatting and lint
+        working-directory: monitoring
+        run: |
+          uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+      - name: Validate native Monitoring scenario documentation
+        working-directory: monitoring/monitoring/uss_qualifier
+        env:
+          PYTHONPATH: ../..
+        run: ../../.venv/bin/python scenarios/documentation/validate_documentation.py
