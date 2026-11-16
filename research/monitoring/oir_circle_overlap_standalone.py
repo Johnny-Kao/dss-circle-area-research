@@ -58,8 +58,7 @@ class OIRCircleOverlap(TestScenario):
         super().__init__()
         self._dss = dss.get_instance(
             {
-                Scope.StrategicCoordination:
-                    "create and query operational intent references"
+                Scope.StrategicCoordination: "create and query operational intent references"
             }
         )
         self._participants = [self._dss.participant_id]
@@ -116,8 +115,7 @@ class OIRCircleOverlap(TestScenario):
             planning_center = volume.outline_circle.center.as_s2sphere().to_point()
             distance = center.angle(planning_center) * EARTH_RADIUS_M
             return (
-                distance + radius_m + margin
-                < volume.outline_circle.radius.in_meters()
+                distance + radius_m + margin < volume.outline_circle.radius.in_meters()
             )
 
         polygon = Polygon(
@@ -203,8 +201,7 @@ class OIRCircleOverlap(TestScenario):
             # the constructed amount.  This is a real-circle invariant only;
             # no historical polygon approximation is reconstructed here.
             signed_edge_distance_m = (
-                asin(max(-1.0, min(1.0, inward.dot_prod(oir_center))))
-                * EARTH_RADIUS_M
+                asin(max(-1.0, min(1.0, inward.dot_prod(oir_center)))) * EARTH_RADIUS_M
             )
             actual_crossing_m = self.OIR_RADIUS_M - signed_edge_distance_m
             if (
