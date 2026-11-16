@@ -28,11 +28,11 @@ for name, lat, lng in LOCATIONS:
     with patch.object(OIRCircleOverlap, "record_note") as notes:
         fixtures = scenario._fixtures(volume)
     assert len(fixtures) == 4, (name, len(fixtures))
-    edges = {
-        int(call.args[1].split("edge=")[1].split(";")[0])
+    source_ids = {
+        int(call.args[1].split("source_cell=")[1].split(";")[0])
         for call in notes.call_args_list
     }
-    assert edges == {0, 1, 2, 3}, (name, edges)
+    assert len(source_ids) == 4, (name, source_ids)
     reference = scenario._reference(volume)
     for index, (primary, query) in enumerate(fixtures):
         p, q = primary.center.as_s2sphere().to_point(), query.center.as_s2sphere().to_point()
