@@ -3,12 +3,12 @@ name: PR1911 upstream CI fidelity (research only)
 on:
   workflow_dispatch:
   push:
-    branches: ['research/pr1911-upstream-ci-triage']
+    branches: ['research/pr1911-circle-boundary-v2-validation']
     paths:
       - 'research/monitoring/stage_oir_circle_for_upstream_ci.py'
       - 'research/monitoring/oir_circle_overlap_standalone.py'
       - 'research/monitoring/oir_circle_overlap_standalone.md'
-      - 'research/monitoring/test_oir_circle_contract.py'
+      - 'research/monitoring/test_oir_circle_v2.py'
       - '.github/workflows/pr1911-upstream-ci-readiness.yml'
 
 permissions:
@@ -75,7 +75,7 @@ jobs:
         working-directory: monitoring
         env:
           PYTHONPATH: .
-        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_contract.py' -v
+        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v2.py' -v
       - name: Print exact diff confined to disposable upstream checkout
         if: always()
         working-directory: monitoring
