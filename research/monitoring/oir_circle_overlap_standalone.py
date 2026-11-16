@@ -246,10 +246,12 @@ class OIRCircleOverlap(TestScenario):
                         # source cell while the real circle reaches the query.
                         if not self._old_index_witness(oir_center, radius_m, cell_id):
                             continue
-                        selected.append((
-                            self._circle(oir_center, radius_m),
-                            self._circle(query_center, self.QUERY_RADIUS_M),
-                        ))
+                        selected.append(
+                            (
+                                self._circle(oir_center, radius_m),
+                                self._circle(query_center, self.QUERY_RADIUS_M),
+                            )
+                        )
                         self.record_note(
                             "fixture_constructed",
                             f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
