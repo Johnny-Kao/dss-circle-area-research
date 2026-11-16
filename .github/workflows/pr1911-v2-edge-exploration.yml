@@ -5,6 +5,7 @@ on:
     branches: ['research/pr1911-circle-boundary-v2-validation']
     paths:
       - 'research/monitoring/export_oir_circle_v2_edge_exploration.py'
+      - 'research/monitoring/export_oir_circle_v2_grid_scan.py'
       - '.github/workflows/pr1911-v2-edge-exploration.yml'
 permissions:
   contents: read
@@ -60,6 +61,33 @@ jobs:
               print(f"  old-miss edges/positions: {miss}")
               assert all(y['fixed_hit'] for x,y in grouped), area
           PY
+      - name: Explore multiple starting cells with unmodified v2 single-fixture code
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/export_oir_circle_v2_grid_scan.py > /tmp/v2-grid.jsonl
+          wc -l /tmp/v2-grid.jsonl
+      - name: Run independent old/fixed oracle on starting-cell scan
+        run: (cd oracle-go && go run .) < /tmp/v2-grid.jsonl > /tmp/v2-grid-results.jsonl
+      - name: Report whether grid-only selection can recover diagnostic positions
+        run: |
+          python3 - <<'PY'
+          import json
+          from collections import defaultdict
+          from pathlib import Path
+          counts=defaultdict(lambda:[0,0,0])
+          for line in Path('/tmp/v2-grid-results.jsonl').read_text().splitlines():
+              item=json.loads(line)
+              row=counts[item['name']]
+              row[0]+=1
+              row[1]+=int(not item['old_hit'] and item['fixed_hit'])
+              row[2]+=int(item['fixed_hit'])
+          for area,(all_cases,diagnostic,fixed) in sorted(counts.items()):
+              print(f"{area}: grid_cells={all_cases}, old-miss/fixed-hit={diagnostic}, fixed-hit={fixed}")
+              assert fixed==all_cases, area
+          assert set(counts)=={'Kentland','Stanford','Tokyo','Zurich','Helsinki'}
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -67,4 +95,6 @@ jobs:
           path: |
             /tmp/v2-edges.jsonl
             /tmp/v2-results.jsonl
+            /tmp/v2-grid.jsonl
+            /tmp/v2-grid-results.jsonl
           if-no-files-found: ignore
