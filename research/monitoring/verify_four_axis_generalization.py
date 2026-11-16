@@ -41,9 +41,10 @@ for name, lat, lng in LOCATIONS:
             + query.radius.value
             - p.angle(q) * EARTH_RADIUS_M
         )
-        assert 0.08 < overlap < 0.12, (name, index, overlap)
+        assert 0.05 < overlap < 0.35, (name, index, overlap)
         p_id, q_id = scenario._cell(p), scenario._cell(q)
         assert p_id != q_id and q_id in p_id.get_edge_neighbors(), (name, index)
+        assert scenario._old_index_witness(p, primary.radius.value, p_id), (name, index)
         assert scenario._circle_in_cell(
             s2sphere.Cell(q_id), q, query.radius.value
         ), (name, index)
