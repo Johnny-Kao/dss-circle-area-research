@@ -183,7 +183,7 @@ class OIRCircleOverlap(TestScenario):
         return True
 
     def _fixtures(self, volume):
-        """Construct four genuinely intersecting, index-adversarial circle pairs."""
+        """Construct four index-adversarial circle pairs in distinct source cells."""
         bounds = self._planning_area.get_extents()
         reference_ll = self._reference(volume)
         cells = {}
@@ -195,13 +195,12 @@ class OIRCircleOverlap(TestScenario):
             cell_id = self._cell(sample)
             cells[cell_id.id()] = cell_id
 
-        selected = {}
+        selected = []
         for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
             neighbors = set(cell_id.get_edge_neighbors())
+            found_for_cell = False
             for edge in range(4):
-                if edge in selected:
-                    continue
                 a, b = cell.get_vertex(edge), cell.get_vertex((edge + 1) % 4)
                 inward = a.cross_prod(b).normalize()
                 if inward.dot_prod(cell.get_center()) < 0:
@@ -247,28 +246,30 @@ class OIRCircleOverlap(TestScenario):
                         # source cell while the real circle reaches the query.
                         if not self._old_index_witness(oir_center, radius_m, cell_id):
                             continue
-                        selected[edge] = (
+                        selected.append((
                             self._circle(oir_center, radius_m),
                             self._circle(query_center, self.QUERY_RADIUS_M),
-                        )
+                        ))
                         self.record_note(
                             "fixture_constructed",
                             f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
                             f"edge={edge}; overlap_m={overlap:.3f}",
                         )
+                        found_for_cell = True
                         break
-                    if edge in selected:
+                    if found_for_cell:
                         break
+                if found_for_cell:
+                    break
             if len(selected) == 4:
                 break
 
         if len(selected) != 4:
-            missing = sorted(set(range(4)) - set(selected))
             raise FixtureUnavailable(
-                f"PlanningAreaResource {bounds} cannot fit four adversarial "
-                f"S2 edge orientations; missing edges: {missing}"
+                f"PlanningAreaResource {bounds} cannot fit four distinct "
+                "diagnostic circular OIRs in separate source cells"
             )
-        return [selected[edge] for edge in range(4)]
+        return selected
 
     def _check_found(self, name, circle, start, end, alt0, alt1):
         query = Volume4D.from_values(
