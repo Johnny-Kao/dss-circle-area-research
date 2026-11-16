@@ -376,7 +376,7 @@ class OIRCircleOverlap(TestScenario):
             contained_query = Circle.from_meters(
                 oir_circle.center.lat,
                 oir_circle.center.lng,
-                oir_circle.radius.in_meters() / 2,
+                oir_circle.radius.value / 2,
             )
             self._check_found(
                 "Ordinary contained circle discovers OIR",
