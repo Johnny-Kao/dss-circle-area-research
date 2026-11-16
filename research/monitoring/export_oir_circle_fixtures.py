@@ -1,7 +1,6 @@
 """Export actual submitted scenario fixtures to the independent Go S2 oracle.
 
-Unlike the existing candidate generator, this checks exact circles selected
-by OIRCircleOverlap._fixtures(), including the order and fixture cap.
+Unlike the existing candidate generator, this checks exact circles selected by OIRCircleOverlap._fixture(), without changing the scenario.
 """
 
 import json
@@ -10,7 +9,7 @@ from unittest.mock import patch
 from monitoring.uss_qualifier.scenarios.astm.utm.dss.oir_circle_overlap import (
     OIRCircleOverlap,
 )
-from test_oir_circle_contract import planning_area
+from test_oir_circle_v2 import planning_area
 
 AREAS = (
     ("Kentland", 37.2, -80.58),
@@ -25,7 +24,7 @@ for name, lat, lng in AREAS:
     scenario = object.__new__(OIRCircleOverlap)
     scenario._planning_area = planning
     with patch.object(OIRCircleOverlap, "record_note"):
-        fixtures = scenario._fixtures(volume)
+        fixtures = [scenario._fixture(volume)]
     for index, (primary, query) in enumerate(fixtures):
         print(
             json.dumps(
