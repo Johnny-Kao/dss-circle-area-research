@@ -1,0 +1,85 @@
+name: PR1911 adversarial witness 32-area proof
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-adversarial-witness-v4']
+    paths:
+      - 'research/monitoring/verify_four_axis_generalization.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
+      - '.github/workflows/pr1911-v4-witness-generalization.yml'
+permissions:
+  contents: read
+jobs:
+  generalization:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: 55728f7d95c5aaf96f08f515815c4080fe18dd56
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Stage Research Scenario in disposable checkout
+        run: python3 research/research/monitoring/stage_oir_circle_for_upstream_ci.py
+      - name: Install original Monitoring lockfile
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Verify real-circle geometry and distinct orientations in 32 new locations
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/verify_four_axis_generalization.py > /tmp/generalization.jsonl
+          test "$(wc -l </tmp/generalization.jsonl)" -eq 128
+      - name: Verify independently against old and repaired S2 implementations
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/generalization.jsonl > /tmp/generalization-results.jsonl
+      - name: Report sensitivity without confusing it with ASTM correctness
+        run: |
+          python3 - <<'PY'
+          from collections import defaultdict
+          import json
+          from pathlib import Path
+          inputs=[json.loads(x) for x in Path('/tmp/generalization.jsonl').read_text().splitlines()]
+          outputs=[json.loads(x) for x in Path('/tmp/generalization-results.jsonl').read_text().splitlines()]
+          assert len(inputs)==len(outputs)==128
+          per_area=defaultdict(lambda:[0,0,0])
+          for case, result in zip(inputs,outputs):
+              assert case['name']==result['name'] and case['caseIndex']==result['caseIndex']
+              row=per_area[case['name']]
+              row[0]+=1
+              row[1]+=int(not result['old_hit'] and result['fixed_hit'])
+              row[2]+=int(result['fixed_hit'])
+          assert len(per_area)==32
+          assert all(v[0]==4 and v[2]==4 for v in per_area.values())
+          sensitive=sum(v[1]>0 for v in per_area.values())
+          print(f"PlanningAreas with guaranteed valid fixtures: {len(per_area)}/32")
+          print(f"Old-DSS bug exposed in PlanningAreas: {sensitive}/32")
+          assert sensitive == 32, f"Adversarial witness missed the old bug in {32-sensitive} planning areas"
+          print(f"Actual true-circle fixtures: {len(inputs)}/128")
+          print(f"Fixed index returns OIR: {sum(v[2] for v in per_area.values())}/128")
+          assert all(v[1] == 4 for v in per_area.values()), "At least one selected fixture not diagnostic"
+          for k,v in sorted(per_area.items()):
+              print(f"{k}: known-bug diagnostic={v[1]}/4")
+          # All areas must produce legally positive fixtures and fixed hits.
+          # Not all geometries need to trigger a specific historic bug.
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-generalization-evidence
+          path: |
+            /tmp/generalization.jsonl
+            /tmp/generalization-results.jsonl
+          if-no-files-found: ignore
