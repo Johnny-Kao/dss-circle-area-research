@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from itertools import product
-from math import cos, sin
+from math import cos, pi, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -50,6 +50,9 @@ class OIRCircleOverlap(TestScenario):
     QUERY_BOUNDARY_CLEARANCE_M = 0.01
     PLANNING_AREA_MARGIN_M = 1.0
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
+    EDGE_FRACTIONS = (0.25, 0.5, 0.75)
+    CIRCLE_RADII_M = (200.0, 150.0, 100.0)
+    CROSSING_DEPTHS_M = (0.11, 0.25)
 
     def __init__(
         self,
@@ -146,8 +149,41 @@ class OIRCircleOverlap(TestScenario):
         ll = s2sphere.LatLng.from_point(center)
         return Circle.from_meters(ll.lat().degrees, ll.lng().degrees, radius_m)
 
+    @classmethod
+    def _old_index_witness(cls, center, radius_m, source_id):
+        """Require the historical inscribed footprint to remain in one S2 cell.
+
+        This selects a difficult input, not an API expectation. DSS conformance
+        depends only on true 4D intersection and the actual search response.
+        """
+        # Match the orientation of S2 RegularLoop's tangent frame. This
+        # fingerprint of the historical bug is *only* a fixture filter.
+        circular = cls._circle(center, radius_m)
+        point = circular.center.as_s2sphere().to_point()
+        values = (abs(point.x), abs(point.y), abs(point.z))
+        tangent = [0.012, 0.0053, 0.00457]
+        dominant = values.index(max(values))
+        tangent[(dominant + 2) % 3] = 1.0
+        y = point.cross_prod(s2sphere.Point(*tangent)).normalize()
+        x = y.cross_prod(point).normalize()
+
+        # Historical DSS used a 20-vertex inscribed S2 RegularLoop with the
+        # S2 Go library's spherical radius. The actual registered OIR remains
+        # a *circle*; no polygon is submitted to or expected from any DSS.
+        theta = radius_m / 6371010.0
+        for i in range(20):
+            a = 2 * pi * i / 20
+            vertex = (
+                x * (sin(theta) * cos(a))
+                + y * (sin(theta) * sin(a))
+                + point * cos(theta)
+            ).normalize()
+            if cls._cell(vertex) != source_id:
+                return False
+        return True
+
     def _fixtures(self, volume):
-        """Select up to four small, true-circle overlaps on distinct S2 edge axes."""
+        """Construct four genuinely intersecting, index-adversarial circle pairs."""
         bounds = self._planning_area.get_extents()
         reference_ll = self._reference(volume)
         cells = {}
@@ -159,8 +195,6 @@ class OIRCircleOverlap(TestScenario):
             cell_id = self._cell(sample)
             cells[cell_id.id()] = cell_id
 
-        # Sampling all four edge directions avoids depending on just the first
-        # usable edge, which can be uninformative in a valid planning area.
         selected = {}
         for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
@@ -168,56 +202,73 @@ class OIRCircleOverlap(TestScenario):
             for edge in range(4):
                 if edge in selected:
                     continue
-                boundary, inward = self._edge(cell, edge)
-                oir_center = self._move(
-                    boundary,
-                    inward,
-                    self.OIR_RADIUS_M - self.OIR_CROSSING_DEPTH_M,
-                )
-                query_center = self._move(
-                    boundary,
-                    -inward,
-                    self.QUERY_RADIUS_M + self.QUERY_BOUNDARY_CLEARANCE_M,
-                )
-                query_id = self._cell(query_center)
-                if self._cell(oir_center) != cell_id or query_id not in neighbors:
-                    continue
-                if not self._circle_in_cell(
-                    s2sphere.Cell(query_id), query_center, self.QUERY_RADIUS_M
-                ):
-                    continue
-                if not self._fits(
-                    oir_center, self.OIR_RADIUS_M, volume, reference_ll
-                ) or not self._fits(
-                    query_center, self.QUERY_RADIUS_M, volume, reference_ll
-                ):
-                    continue
-                overlap = (
-                    self.OIR_RADIUS_M
-                    + self.QUERY_RADIUS_M
-                    - oir_center.angle(query_center) * EARTH_RADIUS_M
-                )
-                expected = self.OIR_CROSSING_DEPTH_M - self.QUERY_BOUNDARY_CLEARANCE_M
-                if overlap <= 0 or abs(overlap - expected) > 0.001:
-                    continue
-
-                selected[edge] = (
-                    self._circle(oir_center, self.OIR_RADIUS_M),
-                    self._circle(query_center, self.QUERY_RADIUS_M),
-                )
-                self.record_note(
-                    "fixture_constructed",
-                    f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
-                    f"edge={edge}; overlap_m={overlap:.3f}",
-                )
+                a, b = cell.get_vertex(edge), cell.get_vertex((edge + 1) % 4)
+                inward = a.cross_prod(b).normalize()
+                if inward.dot_prod(cell.get_center()) < 0:
+                    inward = -inward
+                for fraction in self.EDGE_FRACTIONS:
+                    boundary = (a * (1 - fraction) + b * fraction).normalize()
+                    query_center = self._move(
+                        boundary,
+                        -inward,
+                        self.QUERY_RADIUS_M + self.QUERY_BOUNDARY_CLEARANCE_M,
+                    )
+                    query_id = self._cell(query_center)
+                    if query_id not in neighbors:
+                        continue
+                    if not self._circle_in_cell(
+                        s2sphere.Cell(query_id), query_center, self.QUERY_RADIUS_M
+                    ) or not self._fits(
+                        query_center, self.QUERY_RADIUS_M, volume, reference_ll
+                    ):
+                        continue
+                    for radius_m, depth_m in product(
+                        self.CIRCLE_RADII_M, self.CROSSING_DEPTHS_M
+                    ):
+                        oir_center = self._move(
+                            boundary, inward, radius_m - depth_m
+                        )
+                        if self._cell(oir_center) != cell_id:
+                            continue
+                        if not self._fits(
+                            oir_center, radius_m, volume, reference_ll
+                        ):
+                            continue
+                        overlap = (
+                            radius_m
+                            + self.QUERY_RADIUS_M
+                            - oir_center.angle(query_center) * EARTH_RADIUS_M
+                        )
+                        if overlap <= 0 or abs(
+                            overlap - (depth_m - self.QUERY_BOUNDARY_CLEARANCE_M)
+                        ) > 0.005:
+                            continue
+                        # The inscribed historic index must remain in the
+                        # source cell while the real circle reaches the query.
+                        if not self._old_index_witness(
+                            oir_center, radius_m, cell_id
+                        ):
+                            continue
+                        selected[edge] = (
+                            self._circle(oir_center, radius_m),
+                            self._circle(query_center, self.QUERY_RADIUS_M),
+                        )
+                        self.record_note(
+                            "fixture_constructed",
+                            f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
+                            f"edge={edge}; overlap_m={overlap:.3f}",
+                        )
+                        break
+                    if edge in selected:
+                        break
             if len(selected) == 4:
                 break
 
         if len(selected) != 4:
             missing = sorted(set(range(4)) - set(selected))
             raise FixtureUnavailable(
-                f"PlanningAreaResource {bounds} cannot fit all four S2 edge "
-                f"orientations; missing edges: {missing}"
+                f"PlanningAreaResource {bounds} cannot fit four adversarial "
+                f"S2 edge orientations; missing edges: {missing}"
             )
         return [selected[edge] for edge in range(4)]
 
@@ -305,7 +356,7 @@ class OIRCircleOverlap(TestScenario):
             contained_query = Circle.from_meters(
                 oir_circle.center.lat,
                 oir_circle.center.lng,
-                self.OIR_RADIUS_M / 2,
+                oir_circle.radius.in_meters() / 2,
             )
             self._check_found(
                 "Ordinary contained circle discovers OIR",
