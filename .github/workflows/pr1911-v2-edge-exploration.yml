@@ -1,0 +1,70 @@
+name: PR1911 v2 boundary edge exploration (Research only)
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-circle-boundary-v2-validation']
+    paths:
+      - 'research/monitoring/export_oir_circle_v2_edge_exploration.py'
+      - '.github/workflows/pr1911-v2-edge-exploration.yml'
+permissions:
+  contents: read
+jobs:
+  candidate-oracle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: 55728f7d95c5aaf96f08f515815c4080fe18dd56
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Stage v2 Scenario only in disposable Monitoring checkout
+        run: python3 research/research/monitoring/stage_oir_circle_for_upstream_ci.py
+      - name: Install locked Monitoring dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Export all four real S2 edges at 3 offsets in 5 Planning Areas
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/export_oir_circle_v2_edge_exploration.py > /tmp/v2-edges.jsonl
+          wc -l /tmp/v2-edges.jsonl
+      - name: Run separate independent historical S2 oracle for research evidence
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/v2-edges.jsonl > /tmp/v2-results.jsonl
+      - name: Summarize old-miss/fixed-hit by area, edge and offset
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          source=[json.loads(x) for x in Path('/tmp/v2-edges.jsonl').read_text().splitlines()]
+          results=[json.loads(x) for x in Path('/tmp/v2-results.jsonl').read_text().splitlines()]
+          assert len(source)==len(results)
+          assert source
+          for area in sorted({x['name'] for x in source}):
+              grouped=[(x,y) for x,y in zip(source,results) if x['name']==area]
+              miss=[(x['edge'], x['fraction']) for x,y in grouped if not y['old_hit'] and y['fixed_hit']]
+              print(f"{area}: candidates={len(grouped)} diagnostic={len(miss)}")
+              print(f"  old-miss edges/positions: {miss}")
+              assert all(y['fixed_hit'] for x,y in grouped), area
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-v2-edge-exploration
+          path: |
+            /tmp/v2-edges.jsonl
+            /tmp/v2-results.jsonl
+          if-no-files-found: ignore
