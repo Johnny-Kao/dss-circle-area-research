@@ -183,7 +183,7 @@ class OIRCircleOverlap(TestScenario):
         return True
 
     def _fixtures(self, volume):
-        """Construct four index-adversarial circle pairs in distinct source cells."""
+        """Construct four distinct true-circle pairs with a historic omission witness."""
         bounds = self._planning_area.get_extents()
         reference_ll = self._reference(volume)
         cells = {}
@@ -195,11 +195,10 @@ class OIRCircleOverlap(TestScenario):
             cell_id = self._cell(sample)
             cells[cell_id.id()] = cell_id
 
-        selected = []
+        candidates = []
         for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
             neighbors = set(cell_id.get_edge_neighbors())
-            found_for_cell = False
             for edge in range(4):
                 a, b = cell.get_vertex(edge), cell.get_vertex((edge + 1) % 4)
                 inward = a.cross_prod(b).normalize()
@@ -242,36 +241,49 @@ class OIRCircleOverlap(TestScenario):
                             > 0.005
                         ):
                             continue
-                        # The inscribed historic index must remain in the
-                        # source cell while the real circle reaches the query.
                         if not self._old_index_witness(oir_center, radius_m, cell_id):
                             continue
-                        selected.append(
+                        candidates.append(
                             (
+                                cell_id.id(),
+                                edge,
+                                fraction,
+                                query_id.id(),
                                 self._circle(oir_center, radius_m),
                                 self._circle(query_center, self.QUERY_RADIUS_M),
+                                overlap,
                             )
                         )
-                        self.record_note(
-                            "fixture_constructed",
-                            f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
-                            f"edge={edge}; overlap_m={overlap:.3f}",
-                        )
-                        found_for_cell = True
                         break
-                    if found_for_cell:
-                        break
-                if found_for_cell:
-                    break
-            if len(selected) == 4:
-                break
 
-        if len(selected) != 4:
-            raise FixtureUnavailable(
-                f"PlanningAreaResource {bounds} cannot fit four distinct "
-                "diagnostic circular OIRs in separate source cells"
-            )
-        return selected
+        # Prefer independent source cells. When the supplied planning area
+        # contains fewer than four diagnostic cells, use distinct boundaries
+        # of those cells rather than silently accepting untested directions.
+        selected = []
+        selected_sources = set()
+        selected_boundaries = set()
+        for prefer_distinct_sources in (True, False):
+            for source_id, edge, fraction, query_id, primary, query, overlap in candidates:
+                key = (source_id, edge, fraction)
+                if key in selected_boundaries:
+                    continue
+                if prefer_distinct_sources and source_id in selected_sources:
+                    continue
+                selected.append((primary, query))
+                selected_sources.add(source_id)
+                selected_boundaries.add(key)
+                self.record_note(
+                    "fixture_constructed",
+                    f"source_cell={source_id}; query_cell={query_id}; "
+                    f"edge={edge}; overlap_m={overlap:.3f}",
+                )
+                if len(selected) == 4:
+                    return selected
+
+        raise FixtureUnavailable(
+            f"PlanningAreaResource {bounds} has only {len(selected)} "
+            "independently diagnostic boundary placements; four required"
+        )
 
     def _check_found(self, name, circle, start, end, alt0, alt1):
         query = Volume4D.from_values(
