@@ -65,6 +65,49 @@ are allowed under ASTM F3548-21 DSS0005,2. No invalid negative assertions.
   native registration and 5 positive/fault-injection unit tests:
   https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43885056476
 
+## Unseen-region generalization gate (final evidence)
+
+An independent, deterministic test with **32 previously unused geographic
+locations**, deliberately not relying on the original five regions, ran the
+**unchanged four-axis production-facing Scenario** in disposable Monitoring CI.
+
+- Fixture construction: **32/32 Planning Areas** each produced all four distinct
+  S2 edge orientations, without fixed geographic coordinates in Scenario code.
+- Exact real-circle intersection, 1 m query wholly within the adjacent S2 cell,
+  and Planning Area containment: **128/128 valid fixture pairs**.
+- Independent Go **fixed S2 covering oracle**: **128/128 found**.
+- Independent Go **known-bug old S2 covering oracle**: produced at least one
+  historical false negative in **19/32 Planning Areas**. The other 13 areas
+  still yielded valid ASTM cases, but did **not** expose that specific historic
+  defect under the chosen four-orientation geometry. **Do not claim universal
+  historic-RED guarantees or infer a general conformance percentage from this
+  diagnostic rate.**
+- This additional check is an **index oracle**, not 32 real DSS deployments.
+  The real DSS acceptance evidence remains the 6/6 API jobs cited above.
+
+CI: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43887513123
+
+### Scope closure
+
+Maintainer explicitly asked for a deliberately adversarial S2-boundary fixture
+*and* timeless ASTM correctness checks independent of the InterUSS implementation.
+The current candidate constructs four true-circle boundary-overlap cases in any
+sufficiently roomy PlanningArea; actual DSS API search results are judged only
+against the ASTM positive completeness requirement. The original old-DSS issue
+is demonstrably caught in representative real-database tests.
+
+An absolute proof that a particular buggy **historical inscribed polygon**
+remains in the original S2 cell at every arbitrary planning area **cannot be
+inferred from the true-circle intersection conditions alone**: that property
+depends on details of the old implementation. Those implementation details
+are isolated to the Research differential oracle, never used for DSS
+conformance judgment. Accordingly this candidate is a general ASTM
+boundary-overlap scenario with demonstrated historical-regression sensitivity,
+not a theorem that every arbitrary location must fail the old vendor build.
+
+**Decision:** Keep the passing 337-line four-axis candidate unchanged. No more
+blind radius/location sweeps. Leave the upstream PR and Staging unmodified.
+
 ## Acceptance boundaries and remaining upstream integration
 
 - This is verified regression sensitivity for the **known historical index bug**,
