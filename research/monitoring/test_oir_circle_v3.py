@@ -1,4 +1,4 @@
-"""Independent contract checks for the provided boundary-only v2 candidate.
+"""Independent contract checks for the four-orientation circle-only regression.
 
 These checks are deliberately separate from the production-facing scenario.
 They do not require the historical InterUSS 20-gon implementation.
@@ -64,10 +64,14 @@ class CircularOverlapContractTests(TestCase):
                 resource, volume = planning_area(lat, lng)
                 scenario = object.__new__(OIRCircleOverlap)
                 scenario._planning_area = resource
-                with patch.object(OIRCircleOverlap, "record_note"):
+                with patch.object(OIRCircleOverlap, "record_note") as notes:
                     fixtures = scenario._fixtures(volume)
-                self.assertGreaterEqual(len(fixtures), 1)
                 self.assertEqual(len(fixtures), 4)
+                edge_ids = {
+                    int(call.args[1].split("edge=")[1].split(";")[0])
+                    for call in notes.call_args_list
+                }
+                self.assertEqual(edge_ids, {0, 1, 2, 3})
                 center = s2sphere.LatLng.from_degrees(lat, lng)
                 for primary, query in fixtures:
                     p = primary.center.as_s2sphere().to_point()
@@ -92,7 +96,7 @@ class CircularOverlapContractTests(TestCase):
         scenario = object.__new__(OIRCircleOverlap)
         scenario._planning_area = resource
         with self.assertRaises(FixtureUnavailable):
-            [scenario._fixtures(volume)]
+            scenario._fixtures(volume)
 
     def test_extra_nonintersecting_results_are_permitted(self):
         """ASTM search has a positive completeness requirement, not exact membership."""
