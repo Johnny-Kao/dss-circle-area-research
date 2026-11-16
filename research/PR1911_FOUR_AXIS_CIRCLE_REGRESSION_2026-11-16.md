@@ -57,13 +57,12 @@ are allowed under ASTM F3548-21 DSS0005,2. No invalid negative assertions.
   old `interuss/dss:v0.23.0` deliberately **RED** at Stanford and Kentland;
   repaired `Johnny-Kao/dss staging/pr-1914-review-final` **GREEN** at
   Stanford rectangle; Kentland rectangle, concave-L and circle.
-  Total **6/6 acceptance jobs succeeded**, with four valid fixture notes
+  Final post-guard **6/6 acceptance jobs succeeded**, with four valid fixture notes
   verified for each environment and no execution errors:
-  https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43884192865
-- Exact upstream `make check-hygiene` passed on the same four-axis 200 m
-  implementation (before the additional explicit four-orientation guard):
-  https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43884224697
-- Latest post-guard project-wide `make check-hygiene` verification:
+  https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43884964815
+- **Final post-guard** original project-wide `make check-hygiene`: **PASS**,
+  including whole-repository Ruff, native Scenario/Suite docs, basedpyright,
+  native registration and 5 positive/fault-injection unit tests:
   https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/43885056476
 
 ## Acceptance boundaries and remaining upstream integration
