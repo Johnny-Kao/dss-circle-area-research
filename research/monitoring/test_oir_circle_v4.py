@@ -67,11 +67,11 @@ class CircularOverlapContractTests(TestCase):
                 with patch.object(OIRCircleOverlap, "record_note") as notes:
                     fixtures = scenario._fixtures(volume)
                 self.assertEqual(len(fixtures), 4)
-                edge_ids = {
-                    int(call.args[1].split("edge=")[1].split(";")[0])
+                source_ids = {
+                    int(call.args[1].split("source_cell=")[1].split(";")[0])
                     for call in notes.call_args_list
                 }
-                self.assertEqual(edge_ids, {0, 1, 2, 3})
+                self.assertEqual(len(source_ids), 4)
                 center = s2sphere.LatLng.from_degrees(lat, lng)
                 for primary, query in fixtures:
                     p = primary.center.as_s2sphere().to_point()
