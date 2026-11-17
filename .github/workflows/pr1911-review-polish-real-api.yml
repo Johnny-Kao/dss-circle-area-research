@@ -1,0 +1,317 @@
+name: PR1911 review polish real DSS red green
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-maintainer-review-polish']
+    paths:
+      - 'research/monitoring/**'
+      - '.github/workflows/pr1911-review-polish-real-api.yml'
+      - '.github/workflows/pr1911-differential-fixture.yml'
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {variant: old, area_region: kentland, area_shape: rectangle}
+          - {variant: fixed, area_region: kentland, area_shape: rectangle}
+          - {variant: old, area_region: stanford, area_shape: rectangle}
+          - {variant: fixed, area_region: stanford, area_shape: rectangle}
+          - {variant: fixed, area_region: kentland, area_shape: concave_l}
+          - {variant: fixed, area_region: kentland, area_shape: circle}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: main
+          path: monitoring
+          submodules: true
+      - uses: actions/checkout@v4
+        if: matrix.variant == 'fixed'
+        with:
+          repository: Johnny-Kao/dss
+          ref: staging/pr-1914-review-final
+          path: fixed-dss
+      - name: Build fixed DSS image
+        if: matrix.variant == 'fixed'
+        run: docker build --tag local/dss:pr1914-fixed fixed-dss
+      - name: Stage isolated OIR circle scenario and targeted suite
+        run: |
+          cp research/research/monitoring/oir_circle_overlap_standalone.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_standalone.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py")
+          p.write_text(p.read_text() + "from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap\n")
+          ids=Path("monitoring/monitoring/monitorlib/ids.py")
+          ids.write_text(ids.read_text().replace("# Next code: 406","# Next code: 408",1))
+          p=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_circle_overlap.yaml")
+          # Exercise the actual native dss_probing registration, not just a
+          # standalone testing suite. Keep the full suite out of this focused run.
+          probing=Path("monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_probing.yaml")
+          probing_text=probing.read_text()
+          anchor="  - test_scenario:\n      scenario_type: scenarios.astm.utm.dss.OIRValidation\n"
+          assert probing_text.count(anchor)==1
+          probing_text=probing_text.replace(anchor,(
+              "  - test_scenario:\n"
+              "      scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap\n"
+              "      resources:\n"
+              "        dss: dss\n"
+              "        id_generator: id_generator\n"
+              "        planning_area: planning_area\n"
+          )+anchor,1)
+          probing.write_text(probing_text)
+          assert probing_text.count("scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap")==1
+          p.write_text("""name: DSS circular overlap regression
+          resources:
+            dss: resources.astm.f3548.v21.DSSInstanceResource
+            id_generator: resources.interuss.IDGeneratorResource
+            planning_area: resources.PlanningAreaResource
+          actions:
+            - test_scenario:
+                scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap
+                resources:
+                  dss: dss
+                  id_generator: id_generator
+                  planning_area: planning_area
+          """)
+          config=Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          original=config.read_text().replace("suite_type: suites.astm.utm.f3548_21","suite_type: suites.astm.utm.dss_circle_overlap",1)
+          original=original.replace("          id_generator: id_generator\n", "          id_generator: id_generator\n          planning_area: planning_area\n", 1)
+          assert "  validation:\n" in original
+          original=original.split("  validation:\n",1)[0]
+          original += "  validation:\n    criteria:\n      - applicability:\n          test_scenarios: {}\n        pass_condition:\n          each_element:\n            has_execution_error: false\n      - applicability:\n          failed_checks:\n            has_severity:\n              higher_than: Low\n        pass_condition:\n          elements:\n            count:\n              equal_to: 0\n"
+          config.write_text(original)
+          PY
+      - name: Check scenario wording and official documentation conventions
+        if: matrix.variant == 'fixed' && matrix.area_region == 'kentland' && matrix.area_shape == 'rectangle'
+        working-directory: monitoring
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scenario = Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py").read_text()
+          docs = Path("monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md").read_text()
+          required_steps = (
+              "Clear previous test OIR",
+              "Create circular OIR",
+              "Discover boundary-overlapping OIR",
+              "Ordinary contained circle discovers OIR",
+              "Delete circular OIR",
+          )
+          for step in required_steps:
+              assert f'self.begin_test_step("{step}")' in scenario, step
+              assert f"### {step} test step" in docs, step
+          for check in ("Boundary overlap is discoverable", "Ordinary contained circle discovers OIR"):
+              assert f'"{check}"' in scenario, check
+              assert f"#### " in docs and f"{check} check" in docs, check
+          for prohibited in ("Kentland", "Stanford", "interuss/dss#", "20-gon", "test-owned"):
+              assert prohibited not in docs, prohibited
+          assert "#### ⚠️ Boundary overlap is discoverable check" in docs
+          assert "#### 🛑 Ordinary contained circle discovers OIR check" in docs
+          print("Scenario steps, check names and maintainer wording are consistent.")
+          PY
+          # A new scenario updates downstream generated suite listings.
+          # Regenerate only in the disposable Monitoring CI checkout before lint.
+          make -C monitoring/uss_qualifier format
+          make -C monitoring/uss_qualifier lint
+          echo "Generated documentation changes required for upstream:"
+          git status --short -- monitoring/uss_qualifier/suites monitoring/uss_qualifier/scenarios
+
+      - name: Translate planning area to geographic portability fixtures
+        env:
+          AREA_REGION: ${{ matrix.area_region }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          s = p.read_text()
+          a = s.index("        planning_area_volume:\n")
+          b = s.index("        planning_area:\n", a)
+          block = s[a:b]
+          # Research-only fixtures, not hardcoded coordinates in the scenario.
+          centers = {
+              "kentland": (37.20005, -80.57900),
+              "tokyo": (35.68000, 139.75000),
+              "zurich": (47.38000, 8.54000),
+              "helsinki": (60.17000, 24.94000),
+              "stanford": (37.43000, -122.17000),
+              "arctic": (81.00000, -5.00000),
+              "antarctica": (-75.00000, 110.00000),
+              "dateline": (10.00000, 179.99000),
+              "pole_north": (89.97000, 25.00000),
+              "pole_south": (-89.97000, -40.00000),
+          }
+          label = os.environ["AREA_REGION"]
+          target_lat, target_lng = centers[label]
+          original_lat = (37.1853 + 37.2148) / 2
+          original_lng = (-80.614 + -80.544) / 2
+          lat_delta = target_lat-original_lat
+          lng_delta = target_lng-original_lng
+          block = re.sub(r"lat: (-?\d+\.\d+)", lambda m: f"lat: {float(m[1])+lat_delta:.9f}", block)
+          block = re.sub(r"lng: (-?\d+\.\d+)", lambda m: f"lng: {float(m[1])+lng_delta:.9f}", block)
+          p.write_text(s[:a] + block + s[b:])
+          print(f"Planning area fixture={label}, center=({target_lat}, {target_lng})")
+          PY
+      - name: Create nonrectangular PlanningAreaResource fixture
+        if: matrix.area_shape == 'concave_l'
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          a = data.index("        planning_area_volume:\n")
+          b = data.index("        planning_area:\n", a)
+          section = data[a:b]
+          matches = re.findall(r"- lat: (-?\d+\.\d+)\s+lng: (-?\d+\.\d+)", section)
+          assert len(matches) == 4, matches
+          lats = [float(a) for a, _ in matches]
+          lngs = [float(b) for _, b in matches]
+          south, north = min(lats), max(lats)
+          west, east = min(lngs), max(lngs)
+          mid_lat = south + 0.55 * (north-south)
+          mid_lng = west + 0.55 * (east-west)
+          vertices = [(south,west),(south,east),(mid_lat,east),(mid_lat,mid_lng),(north,mid_lng),(north,west)]
+          vertex_lines = "\n".join(f"                  - lat: {lat:.9f}\n                    lng: {lng:.9f}" for lat,lng in vertices)
+          first = section.index("                vertices:\n")
+          end = section.index("              altitude_lower:",first)
+          section = section[:first] + "                vertices:\n" + vertex_lines + "\n" + section[end:]
+          p.write_text(data[:a]+section+data[b:])
+          print("Concave L footprint (6 vertices) with unchanged geographic bounds")
+          PY
+      - name: Create circular PlanningAreaResource fixture
+        if: matrix.area_shape == 'circle' || matrix.area_shape == 'tiny_circle' || matrix.area_shape == 'pole_circle'
+        env:
+          CIRCLE_SHAPE: ${{ matrix.area_shape }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          start = data.index("        planning_area_volume:\n")
+          finish = data.index("        planning_area:\n", start)
+          block = data[start:finish]
+          coords = re.findall(r"- lat: (-?\d+\.\d+)\s+lng: (-?\d+\.\d+)", block)
+          assert len(coords) == 4, coords
+          center_lat = sum(float(a) for a, _ in coords) / 4
+          center_lng = sum(float(b) for _, b in coords) / 4
+          shape = os.environ["CIRCLE_SHAPE"]
+          radius = {"circle": 2000, "tiny_circle": 25, "pole_circle": 5000}[shape]
+          if shape == "pole_circle":
+              assert abs(center_lat) >= 89.95
+              assert radius > (90 - abs(center_lat)) * 111195
+          prefix, rest = block.split("              outline_polygon:\n", 1)
+          altitude = "              altitude_lower:\n" + rest.split("              altitude_lower:\n", 1)[1]
+          circle = (
+              "              outline_circle:\n"
+              "                center:\n"
+              f"                  lat: {center_lat:.9f}\n"
+              f"                  lng: {center_lng:.9f}\n"
+              "                radius:\n"
+              f"                  value: {radius}\n"
+              "                  units: M\n"
+          )
+          p.write_text(data[:start] + prefix + circle + altitude + data[finish:])
+          print(f"Configured circle PlanningAreaResource with radius={radius} m")
+          PY
+      - name: Create cross-antimeridian polygon PlanningAreaResource fixture
+        if: matrix.area_shape == 'dateline_polygon'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("monitoring/monitoring/uss_qualifier/configurations/dev/f3548_self_contained.yaml")
+          data = p.read_text()
+          a = data.index("        planning_area_volume:\n")
+          b = data.index("        planning_area:\n", a)
+          section = data[a:b]
+          vertices = [
+              (9.985, 179.973),
+              (10.015, 179.973),
+              (10.015, -179.973),
+              (9.985, -179.973),
+          ]
+          assert max(lng for _, lng in vertices) - min(lng for _, lng in vertices) > 180
+          vertex_lines = "\n".join(
+              f"                  - lat: {lat:.9f}\n                    lng: {lng:.9f}"
+              for lat, lng in vertices
+          )
+          first = section.index("                vertices:\n")
+          end = section.index("              altitude_lower:", first)
+          section = section[:first] + "                vertices:\n" + vertex_lines + "\n" + section[end:]
+          p.write_text(data[:a] + section + data[b:])
+          print("Polygon truly crosses 180-degree longitude")
+          PY
+      - name: Verify real DSS API Red/Green (no infrastructure false positives)
+        working-directory: monitoring
+        env:
+          CONFIG_NAME: configurations.dev.f3548_self_contained
+          CI: 'true'
+          DSS_IMAGE: ${{ matrix.variant == 'old' && 'interuss/dss:v0.23.0' || 'local/dss:pr1914-fixed' }}
+          VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          set +e
+          make -C monitoring/uss_qualifier test > /tmp/old-red.log 2>&1
+          status=$?
+          set -e
+          echo "variant=$VARIANT area_region=${{ matrix.area_region }} area_shape=${{ matrix.area_shape }} qualifier_exit=$status"
+          tail -100 /tmp/old-red.log
+          if [ "${{ matrix.area_shape }}" = tiny_circle ]; then
+            test "$status" -ne 0
+            grep -q "Execution error in scenario" /tmp/old-red.log
+            grep -q "FixtureUnavailable" /tmp/old-red.log
+            ! grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "EXPECTED CONFIGURATION ERROR: no fixture is NOT a DSS PASS"
+            exit 0
+          fi
+          if grep -q "Execution error in scenario" /tmp/old-red.log; then
+            echo "FAIL: scenario execution error, not a meaningful regression signal"
+            exit 1
+          fi
+          if grep -q "Note: test_inapplicable" /tmp/old-red.log; then
+            echo "FAIL: Planning Area is not applicable; no DSS conclusion"
+            exit 1
+          fi
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          log = Path("/tmp/old-red.log").read_text()
+          cases = re.findall(r"Note: fixture_constructed[^\n]*source_cell=\d+; query_cell=\d+; corner=\d+", log)
+          assert len(cases) >= 1, f"No valid relative-position fixture was exercised"
+          assert "Note: test_inapplicable" not in log
+          print(f"Valid area-relative patterns verified: {len(cases)}")
+          PY
+          if [ "$VARIANT" = old ]; then
+            test "$status" -ne 0
+            grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "RED CONFIRMED: old DSS missed overlapping OIR"
+          else
+            test "$status" -eq 0
+            ! grep -q "Overlapping OIR was missing" /tmp/old-red.log
+            echo "GREEN CONFIRMED: fixed DSS returned overlapping OIR"
+          fi
+      - name: Save reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr1911-review-${{ matrix.variant }}-region-${{ matrix.area_region }}-${{ matrix.area_shape }}-api-reports
+          path: |
+            /tmp/old-red.log
+            monitoring/monitoring/uss_qualifier/output
+            monitoring/logs
+            monitoring/monitoring/mock_uss/output
+          if-no-files-found: ignore
