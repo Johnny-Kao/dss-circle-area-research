@@ -290,7 +290,7 @@ jobs:
           import re
           from pathlib import Path
           log = Path("/tmp/old-red.log").read_text()
-          cases = re.findall(r"Note: fixture_constructed[^\n]*source_cell=\d+; query_cell=\d+; edge=\d+", log)
+          cases = re.findall(r"Note: fixture_constructed[^\n]*source_cell=\d+; query_cell=\d+; corner=\d+", log)
           assert len(cases) >= 1, f"No valid relative-position fixture was exercised"
           assert "Note: test_inapplicable" not in log
           print(f"Valid area-relative patterns verified: {len(cases)}")
