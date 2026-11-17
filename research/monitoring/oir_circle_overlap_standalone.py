@@ -40,18 +40,18 @@ class OIRCircleOverlap(TestScenario):
         407, "Circular overlap operational intent reference"
     )
 
-    # S2 is used only to place a difficult boundary geometry.  The assertion is
-    # implementation-independent: a genuinely intersecting OIR must be returned.
+    # S2 defines difficult query geometry, not the DSS's indexing contract.
+    # The API must return every OIR that genuinely intersects the query.
     CELL_LEVEL = 13
     OIR_RADIUS_M = 300.0
     QUERY_RADIUS_M = 1.0
-    # Keep the overlap deliberately small so this remains a sharp boundary case.
-    # Place the query wholly in the diagonal S2 cell beyond a cell corner.
+    # The 1m query is wholly across an S2 vertex, not across a shared edge.
     QUERY_CORNER_DISTANCE_M = 2.5
-    # Tilt the OIR's centerline away from the cell-corner diagonal so a
-    # true-circle sliver crosses into the adjacent index cell.
+    # Tilting the OIR centerline produces a narrow but positive overlap
+    # with the diagonal cell, without assuming a particular DSS index.
     CENTER_TILT_DEG = -30.0
     TRUE_OVERLAP_M = 0.1
+    OVERLAP_TOLERANCE_M = 0.001
     PLANNING_AREA_MARGIN_M = 1.0
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
@@ -141,9 +141,9 @@ class OIRCircleOverlap(TestScenario):
         return Circle.from_meters(ll.lat().degrees, ll.lng().degrees, radius_m)
 
     def _fixtures(self, volume):
-        """Place four actual overlapping circles across S2 corner boundaries."""
+        """Find four narrow circle overlaps across diagonal S2 cell corners."""
         bounds = self._planning_area.get_extents()
-        reference_ll = self._reference(volume)
+        planning_reference = self._reference(volume)
         cells = {}
         for fx, fy in product(self.SAMPLE_FRACTIONS, repeat=2):
             sample = s2sphere.LatLng.from_degrees(
@@ -153,42 +153,46 @@ class OIRCircleOverlap(TestScenario):
             cell_id = self._cell(sample)
             cells[cell_id.id()] = cell_id
 
-        selected = []
-        for cell_id in sorted(cells.values(), key=lambda c: c.id()):
-            cell = s2sphere.Cell(cell_id)
-            center = cell.get_center()
-            neighbors = set(cell_id.get_edge_neighbors())
-            for corner in range(4):
-                vertex = cell.get_vertex(corner)
-                inward = (center - vertex * center.dot_prod(vertex)).normalize()
+        fixtures = []
+        for source_id in sorted(cells.values(), key=lambda c: c.id()):
+            source_cell = s2sphere.Cell(source_id)
+            source_center = source_cell.get_center()
+            edge_neighbors = set(source_id.get_edge_neighbors())
+            for corner_index in range(4):
+                vertex = source_cell.get_vertex(corner_index)
+                inward = (
+                    source_center - vertex * source_center.dot_prod(vertex)
+                ).normalize()
                 query_center = self._move(vertex, -inward, self.QUERY_CORNER_DISTANCE_M)
-                query_id = self._cell(query_center)
-                # The query circle must be wholly inside the diagonal
-                # neighbor, not in the source or an edge-sharing cell.
-                if query_id == cell_id or query_id in neighbors:
+                query_cell_id = self._cell(query_center)
+                # Exclude the source cell and its edge-neighbors: this is
+                # specifically a corner-crossing search, not an edge case.
+                if query_cell_id == source_id or query_cell_id in edge_neighbors:
                     continue
                 if not self._circle_in_cell(
-                    s2sphere.Cell(query_id), query_center, self.QUERY_RADIUS_M
+                    s2sphere.Cell(query_cell_id), query_center, self.QUERY_RADIUS_M
                 ) or not self._fits(
-                    query_center, self.QUERY_RADIUS_M, volume, reference_ll
+                    query_center, self.QUERY_RADIUS_M, volume, planning_reference
                 ):
                     continue
 
-                to_vertex = (
+                # Work in the tangent plane at the query center. This keeps
+                # the center separation controlled in spherical distance.
+                toward_corner = (
                     vertex - query_center * query_center.dot_prod(vertex)
                 ).normalize()
-                sideways = query_center.cross_prod(to_vertex).normalize()
+                sideways = query_center.cross_prod(toward_corner).normalize()
                 tilt = radians(self.CENTER_TILT_DEG)
                 toward_source = (
-                    to_vertex * cos(tilt) + sideways * sin(tilt)
+                    toward_corner * cos(tilt) + sideways * sin(tilt)
                 ).normalize()
                 oir_center = self._move(
                     query_center,
                     toward_source,
                     self.OIR_RADIUS_M + self.QUERY_RADIUS_M - self.TRUE_OVERLAP_M,
                 )
-                if self._cell(oir_center) != cell_id or not self._fits(
-                    oir_center, self.OIR_RADIUS_M, volume, reference_ll
+                if self._cell(oir_center) != source_id or not self._fits(
+                    oir_center, self.OIR_RADIUS_M, volume, planning_reference
                 ):
                     continue
                 overlap = (
@@ -196,10 +200,12 @@ class OIRCircleOverlap(TestScenario):
                     + self.QUERY_RADIUS_M
                     - oir_center.angle(query_center) * EARTH_RADIUS_M
                 )
-                if abs(overlap - self.TRUE_OVERLAP_M) > 0.001:
+                # Validate real-circle intersection; do not test membership
+                # against any particular polygon approximation or index.
+                if abs(overlap - self.TRUE_OVERLAP_M) > self.OVERLAP_TOLERANCE_M:
                     continue
 
-                selected.append(
+                fixtures.append(
                     (
                         self._circle(oir_center, self.OIR_RADIUS_M),
                         self._circle(query_center, self.QUERY_RADIUS_M),
@@ -207,11 +213,11 @@ class OIRCircleOverlap(TestScenario):
                 )
                 self.record_note(
                     "fixture_constructed",
-                    f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
-                    f"corner={corner}; overlap_m={overlap:.3f}",
+                    f"source_cell={source_id.id()}; query_cell={query_cell_id.id()}; "
+                    f"corner={corner_index}; overlap_m={overlap:.3f}",
                 )
-                if len(selected) == 4:
-                    return selected
+                if len(fixtures) == 4:
+                    return fixtures
 
         raise FixtureUnavailable(
             f"PlanningAreaResource {bounds} cannot fit four true-circle "
