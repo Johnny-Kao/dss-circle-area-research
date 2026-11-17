@@ -1,4 +1,4 @@
-"""Independent contract checks for the four-orientation circle-only regression.
+"""Independent contract checks for S2 corner-based circle-only regression.
 
 These checks are deliberately separate from the production-facing scenario.
 They do not require the historical InterUSS 20-gon implementation.
@@ -67,11 +67,14 @@ class CircularOverlapContractTests(TestCase):
                 with patch.object(OIRCircleOverlap, "record_note") as notes:
                     fixtures = scenario._fixtures(volume)
                 self.assertEqual(len(fixtures), 4)
-                edge_ids = {
-                    int(call.args[1].split("edge=")[1].split(";")[0])
+                distinct_corners = {
+                    (
+                        int(call.args[1].split("source_cell=")[1].split(";")[0]),
+                        int(call.args[1].split("corner=")[1].split(";")[0]),
+                    )
                     for call in notes.call_args_list
                 }
-                self.assertEqual(edge_ids, {0, 1, 2, 3})
+                self.assertEqual(len(distinct_corners), 4)
                 center = s2sphere.LatLng.from_degrees(lat, lng)
                 for primary, query in fixtures:
                     p = primary.center.as_s2sphere().to_point()
@@ -83,6 +86,9 @@ class CircularOverlapContractTests(TestCase):
                     self.assertLess(overlap, 1, "Only a narrow near-boundary overlap is expected")
                     self.assertEqual(qr, 1)
                     self.assertNotEqual(scenario._cell(p), scenario._cell(q))
+                    self.assertNotIn(
+                        scenario._cell(q), scenario._cell(p).get_edge_neighbors()
+                    )
                     self.assertTrue(
                         scenario._circle_in_cell(
                             s2sphere.Cell(scenario._cell(q)), q, qr
