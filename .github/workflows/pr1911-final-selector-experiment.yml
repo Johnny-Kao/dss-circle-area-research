@@ -1,0 +1,60 @@
+name: PR1911 final geometric selector experiment
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-final-diagnostic-selector']
+    paths:
+      - 'research/monitoring/explore_circle_selection_final.py'
+      - 'research/monitoring/evaluate_circle_selection_final.py'
+      - '.github/workflows/pr1911-final-selector-experiment.yml'
+permissions:
+  contents: read
+jobs:
+  exploration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: 55728f7d95c5aaf96f08f515815c4080fe18dd56
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Stage true-circle-only v3 Scenario in disposable checkout
+        run: python3 research/research/monitoring/stage_oir_circle_for_upstream_ci.py
+      - name: Install upstream lockfile
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Enumerate valid geometry across five baseline and 32 new areas
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/explore_circle_selection_final.py > /tmp/fixtures.jsonl
+          wc -l /tmp/fixtures.jsonl
+      - name: Observe independent old and fixed S2 indexing (Research oracle only)
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/fixtures.jsonl > /tmp/oracle-results.jsonl
+      - name: Evaluate finite, deterministic, implementation-independent strategies
+        run: |
+          python3 research/research/monitoring/evaluate_circle_selection_final.py /tmp/fixtures.jsonl /tmp/oracle-results.jsonl | tee /tmp/selection-report.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-geometric-selection-evidence
+          path: |
+            /tmp/fixtures.jsonl
+            /tmp/oracle-results.jsonl
+            /tmp/selection-report.txt
+          if-no-files-found: ignore
