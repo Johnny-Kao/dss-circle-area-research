@@ -161,9 +161,7 @@ class OIRCircleOverlap(TestScenario):
             for corner in range(4):
                 vertex = cell.get_vertex(corner)
                 inward = (center - vertex * center.dot_prod(vertex)).normalize()
-                query_center = self._move(
-                    vertex, -inward, self.QUERY_CORNER_DISTANCE_M
-                )
+                query_center = self._move(vertex, -inward, self.QUERY_CORNER_DISTANCE_M)
                 query_id = self._cell(query_center)
                 # The query circle must be wholly inside the diagonal
                 # neighbor, not in the source or an edge-sharing cell.
