@@ -1,0 +1,85 @@
+name: PR1911 final native upstream hygiene
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-final-diagnostic-selector']
+    paths:
+      - 'research/monitoring/stage_oir_circle_for_upstream_ci.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.py'
+      - 'research/monitoring/oir_circle_overlap_standalone.md'
+      - 'research/monitoring/test_oir_circle_v3.py'
+      - '.github/workflows/pr1911-final-hygiene.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-hygiene:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          # Original PR #1911 base at the time of the four failed upstream checks.
+          ref: 55728f7d95c5aaf96f08f515815c4080fe18dd56
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - name: Stage all five PR files with correct import order
+        run: python3 research/research/monitoring/stage_oir_circle_for_upstream_ci.py
+      - name: Install project dependencies (locked)
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Enforce Ruff on the whole Monitoring repository, not just the scenario
+        working-directory: monitoring
+        run: |
+          uv run --no-sync ruff format --check
+          uv run --no-sync ruff check
+      - name: Regenerate required derived Suite docs in disposable checkout only
+        working-directory: monitoring/monitoring/uss_qualifier
+        run: |
+          ./scripts/format_test_suite_docs.sh
+          echo "Derived docs changed by registering the scenario:"
+          git status --short -- suites
+          git diff --stat -- suites
+      - name: Validate native Scenario and Suite documents
+        working-directory: monitoring/monitoring/uss_qualifier
+        run: make lint
+      - name: Original project-wide make check-hygiene gate
+        working-directory: monitoring
+        run: make check-hygiene
+      - name: Check registry import and native dss_probing suite registration
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python - <<'PY'
+          from pathlib import Path
+          from monitoring.uss_qualifier.scenarios.astm.utm.dss import OIRCircleOverlap
+
+          registry = Path('monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py')
+          lines = registry.read_text().splitlines()
+          index = lines.index('from .oir_circle_overlap import OIRCircleOverlap as OIRCircleOverlap')
+          assert lines[index - 1].startswith('from .dss_interoperability')
+          assert lines[index + 1].startswith('from .oir_explicit_sub_handling')
+          suite = Path('monitoring/uss_qualifier/suites/astm/utm/dss_probing.yaml').read_text()
+          assert suite.count('scenario_type: scenarios.astm.utm.dss.OIRCircleOverlap') == 1
+          assert OIRCircleOverlap.__name__ == 'OIRCircleOverlap'
+          print('Registry order, native suite registration and scenario import PASS')
+          PY
+      - name: ASTM positive-result contract and targeted fixture checks
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v3.py' -v
+      - name: Print exact diff confined to disposable upstream checkout
+        if: always()
+        working-directory: monitoring
+        run: |
+          git status --short
+          git diff --check
+          git diff --stat
