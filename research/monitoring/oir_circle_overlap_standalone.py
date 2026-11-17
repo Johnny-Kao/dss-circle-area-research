@@ -43,7 +43,7 @@ class OIRCircleOverlap(TestScenario):
     # S2 is used only to place a difficult boundary geometry.  The assertion is
     # implementation-independent: a genuinely intersecting OIR must be returned.
     CELL_LEVEL = 13
-    OIR_RADIUS_M = 200.0
+    OIR_RADIUS_M = 300.0
     QUERY_RADIUS_M = 1.0
     # Keep the overlap deliberately small so this remains a sharp boundary case.
     OIR_CROSSING_DEPTH_M = 0.11
