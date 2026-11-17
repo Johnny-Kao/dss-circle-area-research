@@ -1,0 +1,80 @@
+name: PR1911 tilted corner adversarial geometry
+on:
+  workflow_dispatch:
+  push:
+    branches: ['research/pr1911-corner-adversarial-final']
+    paths:
+      - 'research/monitoring/explore_s2_corner_tilted.py'
+      - '.github/workflows/pr1911-corner-tilted-experiment.yml'
+permissions:
+  contents: read
+jobs:
+  diagonal-corner:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/monitoring
+          ref: 55728f7d95c5aaf96f08f515815c4080fe18dd56
+          path: monitoring
+          submodules: true
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25'
+          cache: false
+      - name: Stage baseline true-circle Scenario in disposable Monitoring checkout
+        run: python3 research/research/monitoring/stage_oir_circle_for_upstream_ci.py
+      - name: Install locked dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Generate actual diagonally adjacent true circles at S2 vertices
+        working-directory: monitoring
+        env:
+          PYTHONPATH: .
+        run: |
+          uv run --no-sync python ../research/research/monitoring/explore_s2_corner_tilted.py > /tmp/diagonal.jsonl
+          wc -l /tmp/diagonal.jsonl
+      - name: Observe independent historical and fixed S2 index sensitivity
+        run: |
+          mkdir oracle-go
+          cp research/research/monitoring/differential_s2_cover_oracle.go oracle-go/main.go
+          printf 'module pr1911research\n\ngo 1.25.0\n\nrequire github.com/golang/geo v0.0.0-20261106073233-5e8d6967632a\n' > oracle-go/go.mod
+          (cd oracle-go && go mod tidy && go run .) < /tmp/diagonal.jsonl > /tmp/diagonal-results.jsonl
+      - name: Strict cross-region diagnostic score and first valid adversarial case
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from collections import defaultdict
+          cases=[json.loads(s) for s in Path('/tmp/diagonal.jsonl').read_text().splitlines()]
+          results=[json.loads(s) for s in Path('/tmp/diagonal-results.jsonl').read_text().splitlines()]
+          assert len(cases)==len(results)
+          per=defaultdict(lambda:[0,0,0])
+          first={}
+          for a,b in zip(cases,results):
+              assert a['name']==b['name'] and a['caseIndex']==b['caseIndex']
+              assert b['fixed_hit'], ('fixed cap missed intersecting circle',a,b)
+              row=per[a['name']]
+              row[0]+=1
+              row[1]+=int(not b['old_hit'])
+              row[2]+=int(b['fixed_hit'])
+              if not b['old_hit'] and a['name'] not in first: first[a['name']]=a
+          for name,values in sorted(per.items()):
+              print(f"AREA {name}: true_intersections={values[0]} old_misses={values[1]} fixed_hits={values[2]} witness={first.get(name)}")
+          print(f"AREAS_DIAGNOSTIC {len(first)}/{len(per)}")
+          print(f"ALL_CASES {len(cases)}")
+          assert len(per)==37, per.keys()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-tilted-corner-research
+          path: |
+            /tmp/diagonal.jsonl
+            /tmp/diagonal-results.jsonl
+          if-no-files-found: ignore
