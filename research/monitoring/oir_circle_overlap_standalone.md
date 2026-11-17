@@ -4,9 +4,9 @@
 
 Tests the DSS operational intent reference search API when a small circular query genuinely overlaps a larger registered circular operational intent reference (OIR) close to its boundary.
 
-The scenario places four circular OIRs, one at a time, near distinct S2 cell edge directions within the configured PlanningAreaResource. A 1 m query circle overlaps each 300 m OIR by approximately 0.1 m. Their altitude and time ranges also overlap. The OIR must be returned because the 4D query intersects it. Additional search results are permitted. The scenario also performs an ordinary contained-circle query as a positive control.
+The scenario places four circular OIRs, one at a time, across distinct level-13 S2 cell corners within the configured PlanningAreaResource. A 1 m query circle overlaps each 300 m OIR by approximately 0.1 m. Their altitude and time ranges also overlap. The OIR must be returned because the 4D query intersects it. Additional search results are permitted. The scenario also performs an ordinary contained-circle query as a positive control.
 
-The `PlanningAreaResource` must have enough horizontal and vertical room for all four boundary orientations. If any orientation cannot be placed, the test configuration is unsuitable for this scenario rather than indicating a DSS conformance failure.
+The `PlanningAreaResource` must have enough horizontal and vertical room for four distinct S2 corner intersections. If four suitable corner intersections cannot be placed, the test configuration is unsuitable for this scenario rather than indicating a DSS conformance failure.
 
 ## Resources
 
@@ -48,7 +48,7 @@ Creating the OIR must succeed under **[astm.f3548.v21.DSS0005,1](../../../../req
 
 ### Discover boundary-overlapping OIR test step
 
-A 1 m query circle genuinely overlaps the registered circular OIR near its boundary. Their time and altitude intervals also overlap.
+A 1 m query circle genuinely overlaps the registered circular OIR at a crossing of two S2 cell boundaries. Their time and altitude intervals also overlap.
 
 #### ⚠️ Boundary overlap is discoverable check
 
