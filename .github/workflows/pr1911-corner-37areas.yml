@@ -64,7 +64,8 @@ jobs:
           assert all(v[0]==4 and v[2]==4 and v[1]>=1 for v in per_area.values())
           sensitive=sum(v[1]>0 for v in per_area.values())
           print(f"PlanningAreas with guaranteed valid fixtures: {len(per_area)}/37")
-          print(f"Old-DSS bug exposed in PlanningAreas: {sensitive}/37")\n          assert sensitive == 37
+          print(f"Old-DSS bug exposed in PlanningAreas: {sensitive}/37")
+          assert sensitive == 37
           print(f"Actual true-circle fixtures: {len(inputs)}/128")
           print(f"Fixed index returns OIR: {sum(v[2] for v in per_area.values())}/128")
           for k,v in sorted(per_area.items()):
