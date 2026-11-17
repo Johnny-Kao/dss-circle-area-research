@@ -81,16 +81,6 @@ class OIRCircleOverlap(TestScenario):
         ll = s2sphere.LatLng.from_point(point)
         return cell_of(ll.lat().degrees, ll.lng().degrees, cls.CELL_LEVEL)
 
-    @staticmethod
-    def _edge(cell, edge):
-        a = cell.get_vertex(edge)
-        b = cell.get_vertex((edge + 1) % 4)
-        boundary = (a + b).normalize()
-        inward = a.cross_prod(b).normalize()
-        if inward.dot_prod(cell.get_center()) < 0:
-            inward = -inward
-        return boundary, inward
-
     @classmethod
     def _circle_in_cell(cls, cell, center, radius_m):
         if not cell.contains(center):
