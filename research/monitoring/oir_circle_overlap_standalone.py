@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from itertools import product
-from math import cos, sin
+from math import cos, radians, sin
 
 import s2sphere
 from shapely.geometry import Point, Polygon
@@ -46,8 +46,12 @@ class OIRCircleOverlap(TestScenario):
     OIR_RADIUS_M = 300.0
     QUERY_RADIUS_M = 1.0
     # Keep the overlap deliberately small so this remains a sharp boundary case.
-    OIR_CROSSING_DEPTH_M = 0.11
-    QUERY_BOUNDARY_CLEARANCE_M = 0.01
+    # Place the query wholly in the diagonal S2 cell beyond a cell corner.
+    QUERY_CORNER_DISTANCE_M = 2.5
+    # Tilt the OIR's centerline away from the cell-corner diagonal so a
+    # true-circle sliver crosses into the adjacent index cell.
+    CENTER_TILT_DEG = -30.0
+    TRUE_OVERLAP_M = 0.1
     PLANNING_AREA_MARGIN_M = 1.0
     SAMPLE_FRACTIONS = tuple(i / 8 for i in range(1, 8))
 
@@ -147,7 +151,7 @@ class OIRCircleOverlap(TestScenario):
         return Circle.from_meters(ll.lat().degrees, ll.lng().degrees, radius_m)
 
     def _fixtures(self, volume):
-        """Select up to four small, true-circle overlaps on distinct S2 edge axes."""
+        """Place four actual overlapping circles across S2 corner boundaries."""
         bounds = self._planning_area.get_extents()
         reference_ll = self._reference(volume)
         cells = {}
@@ -159,37 +163,44 @@ class OIRCircleOverlap(TestScenario):
             cell_id = self._cell(sample)
             cells[cell_id.id()] = cell_id
 
-        # Sampling all four edge directions avoids depending on just the first
-        # usable edge, which can be uninformative in a valid planning area.
-        selected = {}
+        selected = []
         for cell_id in sorted(cells.values(), key=lambda c: c.id()):
             cell = s2sphere.Cell(cell_id)
+            center = cell.get_center()
             neighbors = set(cell_id.get_edge_neighbors())
-            for edge in range(4):
-                if edge in selected:
-                    continue
-                boundary, inward = self._edge(cell, edge)
-                oir_center = self._move(
-                    boundary,
-                    inward,
-                    self.OIR_RADIUS_M - self.OIR_CROSSING_DEPTH_M,
-                )
+            for corner in range(4):
+                vertex = cell.get_vertex(corner)
+                inward = (center - vertex * center.dot_prod(vertex)).normalize()
                 query_center = self._move(
-                    boundary,
-                    -inward,
-                    self.QUERY_RADIUS_M + self.QUERY_BOUNDARY_CLEARANCE_M,
+                    vertex, -inward, self.QUERY_CORNER_DISTANCE_M
                 )
                 query_id = self._cell(query_center)
-                if self._cell(oir_center) != cell_id or query_id not in neighbors:
+                # The query circle must be wholly inside the diagonal
+                # neighbor, not in the source or an edge-sharing cell.
+                if query_id == cell_id or query_id in neighbors:
                     continue
                 if not self._circle_in_cell(
                     s2sphere.Cell(query_id), query_center, self.QUERY_RADIUS_M
-                ):
-                    continue
-                if not self._fits(
-                    oir_center, self.OIR_RADIUS_M, volume, reference_ll
                 ) or not self._fits(
                     query_center, self.QUERY_RADIUS_M, volume, reference_ll
+                ):
+                    continue
+
+                to_vertex = (
+                    vertex - query_center * query_center.dot_prod(vertex)
+                ).normalize()
+                sideways = query_center.cross_prod(to_vertex).normalize()
+                tilt = radians(self.CENTER_TILT_DEG)
+                toward_source = (
+                    to_vertex * cos(tilt) + sideways * sin(tilt)
+                ).normalize()
+                oir_center = self._move(
+                    query_center,
+                    toward_source,
+                    self.OIR_RADIUS_M + self.QUERY_RADIUS_M - self.TRUE_OVERLAP_M,
+                )
+                if self._cell(oir_center) != cell_id or not self._fits(
+                    oir_center, self.OIR_RADIUS_M, volume, reference_ll
                 ):
                     continue
                 overlap = (
@@ -197,29 +208,27 @@ class OIRCircleOverlap(TestScenario):
                     + self.QUERY_RADIUS_M
                     - oir_center.angle(query_center) * EARTH_RADIUS_M
                 )
-                expected = self.OIR_CROSSING_DEPTH_M - self.QUERY_BOUNDARY_CLEARANCE_M
-                if overlap <= 0 or abs(overlap - expected) > 0.001:
+                if abs(overlap - self.TRUE_OVERLAP_M) > 0.001:
                     continue
 
-                selected[edge] = (
-                    self._circle(oir_center, self.OIR_RADIUS_M),
-                    self._circle(query_center, self.QUERY_RADIUS_M),
+                selected.append(
+                    (
+                        self._circle(oir_center, self.OIR_RADIUS_M),
+                        self._circle(query_center, self.QUERY_RADIUS_M),
+                    )
                 )
                 self.record_note(
                     "fixture_constructed",
                     f"source_cell={cell_id.id()}; query_cell={query_id.id()}; "
-                    f"edge={edge}; overlap_m={overlap:.3f}",
+                    f"corner={corner}; overlap_m={overlap:.3f}",
                 )
-            if len(selected) == 4:
-                break
+                if len(selected) == 4:
+                    return selected
 
-        if len(selected) != 4:
-            missing = sorted(set(range(4)) - set(selected))
-            raise FixtureUnavailable(
-                f"PlanningAreaResource {bounds} cannot fit all four S2 edge "
-                f"orientations; missing edges: {missing}"
-            )
-        return [selected[edge] for edge in range(4)]
+        raise FixtureUnavailable(
+            f"PlanningAreaResource {bounds} cannot fit four true-circle "
+            "S2 corner overlap cases"
+        )
 
     def _check_found(self, name, circle, start, end, alt0, alt1):
         query = Volume4D.from_values(
