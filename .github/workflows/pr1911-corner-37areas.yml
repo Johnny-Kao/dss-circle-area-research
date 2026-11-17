@@ -66,8 +66,8 @@ jobs:
           print(f"PlanningAreas with guaranteed valid fixtures: {len(per_area)}/37")
           print(f"Old-DSS bug exposed in PlanningAreas: {sensitive}/37")
           assert sensitive == 37
-          print(f"Actual true-circle fixtures: {len(inputs)}/128")
-          print(f"Fixed index returns OIR: {sum(v[2] for v in per_area.values())}/128")
+          print(f"Actual true-circle fixtures: {len(inputs)}/148")
+          print(f"Fixed index returns OIR: {sum(v[2] for v in per_area.values())}/148")
           for k,v in sorted(per_area.items()):
               print(f"{k}: known-bug diagnostic={v[1]}/4")
           # All areas must produce legally positive fixtures and fixed hits.
