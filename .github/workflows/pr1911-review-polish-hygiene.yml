@@ -76,6 +76,19 @@ jobs:
         env:
           PYTHONPATH: .
         run: uv run --no-sync python -m unittest discover -s ../research/research/monitoring -p 'test_oir_circle_v3.py' -v
+      - name: Preserve only regenerated suite indexes for PR sync
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr1911-generated-suite-docs
+          path: |
+            monitoring/monitoring/uss_qualifier/suites/astm/utm/dss_probing.md
+            monitoring/monitoring/uss_qualifier/suites/astm/utm/f3548_21.md
+            monitoring/monitoring/uss_qualifier/suites/faa/uft/message_signing.md
+            monitoring/monitoring/uss_qualifier/suites/interuss/dss/all_tests.md
+            monitoring/monitoring/uss_qualifier/suites/uspace/flight_auth.md
+            monitoring/monitoring/uss_qualifier/suites/uspace/required_services.md
+          if-no-files-found: error
       - name: Print exact diff confined to disposable upstream checkout
         if: always()
         working-directory: monitoring
