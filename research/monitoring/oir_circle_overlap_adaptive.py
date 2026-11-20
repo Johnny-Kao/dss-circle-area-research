@@ -157,8 +157,8 @@ class OIRCircleOverlap(TestScenario):
         seen_vertices = set()
         # Prefer the actual local PlanningArea centre; CellID order is not spatial.
         def cell_distance(cell_id):
-            return s2sphere.Cell(cell_id).get_center().angle(
-                planning_reference.to_point()
+            return (
+                s2sphere.Cell(cell_id).get_center().angle(planning_reference.to_point())
             )
 
         for source_id in sorted(cells.values(), key=cell_distance):
@@ -196,9 +196,7 @@ class OIRCircleOverlap(TestScenario):
                     vertex - query_center * query_center.dot_prod(vertex)
                 ).normalize()
                 sideways = query_center.cross_prod(toward_corner).normalize()
-                distance = (
-                    self.OIR_RADIUS_M + self.QUERY_RADIUS_M - self.TRUE_OVERLAP_M
-                )
+                distance = self.OIR_RADIUS_M + self.QUERY_RADIUS_M - self.TRUE_OVERLAP_M
                 feasible = []
                 for degree in range(-85, 86, self.ANGLE_STEP_DEG):
                     tilt = radians(degree)
