@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'research/monitoring/oir_circle_overlap_adaptive.py'
+      - 'research/monitoring/oir_circle_overlap_fixed_reference.py'
       - 'research/monitoring/oir_circle_overlap_adaptive.md'
       - 'research/monitoring/adaptive_real_planning_geometry.py'
       - '.github/workflows/adaptive-planning-geometry.yml'
@@ -44,7 +45,14 @@ jobs:
           set -euo pipefail
           uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
-          PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../planning-shapes.log
+          VARIANT=adaptive PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../planning-shapes.log
+      - name: Reference -30 degree scenario, same shapes and runner
+        working-directory: monitoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp ../research/research/monitoring/oir_circle_overlap_fixed_reference.py monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          VARIANT=fixed_minus30 PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../planning-shapes-fixed.log
       - name: Validate Monitoring scenario documentation
         working-directory: monitoring/monitoring/uss_qualifier
         env:
@@ -54,5 +62,7 @@ jobs:
         if: always()
         with:
           name: adaptive-real-planning-shapes
-          path: planning-shapes.log
+          path: |
+            planning-shapes.log
+            planning-shapes-fixed.log
           if-no-files-found: ignore
