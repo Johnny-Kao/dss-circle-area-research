@@ -27,11 +27,6 @@ func globalAdaptiveAreaAware(lat,lng,areaRadius float64) (bool,bool) {
  }}
  // Prioritize cells geographically close to the planning center, not S2 CellID.
  // The source center must itself fit a 300 m OIR.
- filtered:=make([]s2.CellID,0,len(ids))
- for _,id:=range ids{
-  if fits(s2.CellFromCellID(id).Center(),300) || areaRadius==0 {filtered=append(filtered,id)}
- }
- if areaRadius>0 && len(filtered)>0 {ids=filtered}
  sort.Slice(ids,func(i,j int)bool{
   a:=float64(reference.Distance(s2.CellFromCellID(ids[i]).Center()))
   b:=float64(reference.Distance(s2.CellFromCellID(ids[j]).Center()))
