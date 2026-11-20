@@ -49,3 +49,28 @@ Additional scenario syntax, Ruff format/lint, direct Monitoring fixture geometry
 This is a *conditionally generalizable* fixture-generation method, not an all-configurations universal guarantee. Geometry must allow four independent corners and full placement of both circles; small/irregular areas can be unsuitable. No amount of angle selection can logically guarantee the same four distinct corners fit arbitrary very small areas.
 
 Further verification needed before replacing upstream -30-degree constant: complete five-area HTTP Red/Green CI, any actual conformance scenario documentation updates, and quantify choice complexity relative to maintainer-accepted +/-30 degrees.
+
+## Upstream resource contract and fixture uniqueness audit (additional review)
+Read upstream `monitoring/uss_qualifier/resources/planning_area.py`, `resources/geospatial.py`, scenarios README, test configs, and PR #1911's own scenario docs. Generic `PlanningAreaResource` defines a geographic test volume and does NOT specify a global 300m minimum radius, four S2 corner vertices, or any fixed bounding-area size. The *scenario documentation* from `Johnny-Kao/monitoring` staging specifically requires four distinct S2 corner intersections and says insufficient configuration is unsuitable, not DSS conformance failure. This is a scenario-specific prerequisite (created by this PR), not a pre-existing project-wide hidden contract. Standard Kentland and Zurich planning areas are generous representative examples, not universal required minimums.
+
+A direct fixture identity check against 288 real PlanningArea shape/scale/site cases found:
+- Original fixed -30° generator: 171 configurations returned four fixtures, but **107/171** contained duplicated physical S2 corner vertices; **64/171** had four distinct corners.
+- Adaptive unique-corner generator: 152 configurations returned four fixtures, and **0/152** contained duplicated vertices.
+- This is a mismatch between original scenario documentation and original implementation, **not** a DSS defect. Four distinct vertices is stricter than merely four valid fixtures and changes domain availability.
+
+Public GC: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44795053472
+
+## Computational cost / caching
+Measured in the same GitHub Actions runner over the same 288 actual Monitoring shapes. First unoptimized run:
+- Fixed baseline total 1.270160s, median 3.898ms, P95 8.618ms.
+- Adaptive total 13.961600s, median 56.318ms, P95 100.360ms.
+Run: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44794478770
+
+Optimized adaptive caches the polygon and the two inward geometric buffers once per PlanningArea in a single `_fixtures` call instead of reconstructing them for each angle:
+- Controlled run: fixed baseline total 0.559204s, median 1.719ms, P95 3.627ms; adaptive total 2.614510s, median 9.425ms, P95 16.485ms.
+- 4.7x aggregate runtime cost for adaptive in that run, despite major improvement. Shared runner variability affects absolute times, so same-run relative comparisons matter.
+- Another same-run fixture-identity GC recorded adaptive 5.761511s and fixed 1.275223s over 288, approximately 4.5x ratio.
+Run: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44794848583
+
+## Decision
+Do not silently turn insufficient fixture geometry into either a DSS conformance failure or a pass. Neither the DSS nor generic PlanningAreaResource contract requires four distinct S2 vertices. The scenario documentation should match the actual desired testing contract (four valid test configurations vs four unique physical vertices), with explicit configuration preconditions. Until that product decision is made, calling adaptive universally superior would be incorrect. A richer angle selector still has code complexity and ~4.5–4.7x fixture-generation runtime cost on these shapes, but test-runtime impact across actual HTTP operations needs separate overall measurement.
