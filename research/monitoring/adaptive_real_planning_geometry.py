@@ -52,6 +52,8 @@ def main():
            (0.0,0.0),(60.17,24.94),(-22.90,-43.20),(52.37,4.90)]
     print("SCENARIO_SOURCE=actual Monitoring _fixtures / _fits")
     times=[]
+    duplicate_fixture_areas=0
+    complete_fixture_areas=0
     for kind in kinds:
         for scale in [500,750,1000,1500,2500,5000]:
             full=0;unavailable=0;other=0
@@ -61,7 +63,8 @@ def main():
                 scenario=object.__new__(OIRCircleOverlap)
                 scenario._planning_area=TestArea(volume)
                 # Call exact production-like fixture construction; only record_note is mocked.
-                scenario.record_note=lambda *args,**kwargs: None
+                notes=[]
+                scenario.record_note=lambda key,msg: notes.append((key,msg))
                 try:
                     started=perf_counter()
                     try:
@@ -70,6 +73,17 @@ def main():
                         times.append(perf_counter()-started)
                     if len(fixtures)!=4:raise AssertionError(f"Unexpected fixture count {len(fixtures)}")
                     full+=1
+                    complete_fixture_areas+=1
+                    vertices=set()
+                    for key,msg in notes:
+                        if key!="fixture_constructed":continue
+                        data=dict(item.split("=",1) for item in msg.split("; "))
+                        import s2sphere
+                        vertex=s2sphere.Cell(s2sphere.CellId(int(data["source_cell"]))).get_vertex(int(data["corner"]))
+                        ll=s2sphere.LatLng.from_point(vertex)
+                        vertices.add((round(ll.lat().degrees,11),round(ll.lng().degrees,11)))
+                    if len(vertices)<4:
+                        duplicate_fixture_areas+=1
                 except FixtureUnavailable as e:
                     unavailable+=1
                     if len(details)<2:details.append(str(e)[:120])
@@ -78,6 +92,7 @@ def main():
                     details.append(f"{type(e).__name__}: {e}")
             print(f"REAL_PLANNING shape={kind} scale_m={scale} full={full}/8 unavailable={unavailable} errors={other} examples={details}",flush=True)
             if other:raise AssertionError(f"Unexpected error with {kind},scale={scale}")
+    print(f"CORNER_IDENTITY variant={os.getenv('VARIANT','unknown')} complete={complete_fixture_areas} duplicates={duplicate_fixture_areas}",flush=True)
     times.sort()
     if times:
         print(f"COST variant={os.getenv('VARIANT','unknown')} calls={len(times)} total_s={sum(times):.6f} median_ms={times[len(times)//2]*1000:.3f} p95_ms={times[min(len(times)-1,int(len(times)*.95))]*1000:.3f} max_ms={times[-1]*1000:.3f}",flush=True)
