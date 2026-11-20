@@ -28,7 +28,7 @@ func sweepCircleWithinCell(c s2.Cell, p s2.Point, radius float64) bool {
  }
  return true
 }
-func sweepFixture(lat,lng, tilt float64) (bool,bool) {
+func sweepFixtureAngles(lat,lng float64, tilts []float64) (bool,bool) {
  // Same 7x7 sampling strategy as monitoring PR #1911.
  // Return whether four fixtures exist and whether any is missed by the old DSS.
  halfLat,halfLng:=0.013,0.030
@@ -54,6 +54,7 @@ func sweepFixture(lat,lng, tilt float64) (bool,bool) {
    adjacent:=false
    for _,n:=range neighbors {if qid==n {adjacent=true}}
    if adjacent || !sweepCircleWithinCell(s2.CellFromCellID(qid),query,1) {continue}
+   for _,tilt:=range tilts {
    towardCorner:=vertex.Vector.Sub(query.Vector.Mul(vertex.Vector.Dot(query.Vector))).Normalize()
    sideways:=query.Vector.Cross(towardCorner).Normalize()
    rad:=tilt*math.Pi/180
@@ -71,10 +72,13 @@ func sweepFixture(lat,lng, tilt float64) (bool,bool) {
    if !ca.Intersects(cb) {missed=true}
    fixtures++
    if fixtures==4 {return true,missed}
+   }
   }
  }
  return false,false
 }
+
+func sweepFixture(lat,lng,tilt float64)(bool,bool){ return sweepFixtureAngles(lat,lng,[]float64{tilt}) }
 
 func TestResearchCornerTiltSweep(t *testing.T) {
  locations:=[][2]float64{}
@@ -102,11 +106,16 @@ func TestResearchCornerTiltSweep(t *testing.T) {
   t.Logf("ANGLE=%+d VALID=%d/37 OLD_MISSED=%d/37",angle,validByAngle[angle],missesByAngle[angle])
  }
  union:=0;recovered:=0;baselineHit:=0
+ mixedMinusFirst:=0; mixedPlusFirst:=0; mixedMinusFirstValid:=0; mixedPlusFirstValid:=0
  for i:=range locations {
+   a,ma:=sweepFixtureAngles(locations[i][0],locations[i][1],[]float64{-30,30})
+   b,mb:=sweepFixtureAngles(locations[i][0],locations[i][1],[]float64{30,-30})
+   if a {mixedMinusFirstValid++; if ma {mixedMinusFirst++}}
+   if b {mixedPlusFirstValid++; if mb {mixedPlusFirst++}}
    if baseline[i] {baselineHit++}
    if masks[i][-30]||masks[i][30] {union++}
    if !baseline[i]&&masks[i][30] {recovered++}
  }
- fmt.Printf("SWEEP_SUMMARY baseline_minus30=%d/37 plus30=%d/37 union=%d/37 recovered=%d best_angle=%d best_hits=%d\n",baselineHit,missesByAngle[30],union,recovered,bestAngle,best)
+ fmt.Printf("SWEEP_SUMMARY baseline_minus30=%d/37 plus30=%d/37 union=%d/37 recovered=%d best_angle=%d best_hits=%d mixed_minus_first=%d/37 valid=%d mixed_plus_first=%d/37 valid=%d\n",baselineHit,missesByAngle[30],union,recovered,bestAngle,best,mixedMinusFirst,mixedMinusFirstValid,mixedPlusFirst,mixedPlusFirstValid)
  // The experiment reports outcomes; no assertion that a particular angle is optimal.
 }
