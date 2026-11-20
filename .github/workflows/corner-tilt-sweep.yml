@@ -1,0 +1,39 @@
+name: Research S2 corner tilt sweep (old DSS oracle)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'research/monitoring/corner_tilt_sweep_test.go'
+      - '.github/workflows/corner-tilt-sweep.yml'
+permissions:
+  contents: read
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: interuss/dss
+          ref: e97e15eccbe87d114cf85892db6f675e05b93311
+          path: dss
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: dss/go.mod
+          cache-dependency-path: dss/go.sum
+      - name: Run angle scan using actual legacy GeoCircle.CalculateCovering
+        run: |
+          cp research/research/monitoring/corner_tilt_sweep_test.go dss/pkg/models/corner_tilt_sweep_test.go
+          gofmt -w dss/pkg/models/corner_tilt_sweep_test.go
+          cd dss
+          go test -v -count=1 -timeout=40m -run '^TestResearchCornerTiltSweep$' ./pkg/models | tee ../angle-sweep.log
+      - name: Upload public experiment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corner-tilt-sweep-log
+          path: angle-sweep.log
+          if-no-files-found: ignore
