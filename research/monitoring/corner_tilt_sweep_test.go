@@ -6,6 +6,7 @@ import (
  "testing"
  "github.com/golang/geo/r3"
  "github.com/golang/geo/s2"
+ "github.com/interuss/dss/pkg/geo"
 )
 
 const earthAngleSweep=6371010.0
@@ -133,6 +134,10 @@ func sweepFixtureAdaptive(lat,lng float64) (bool,bool) {
    b:=GeoCircle{Center:LatLngPoint{Lat:bLL.Lat.Degrees(),Lng:bLL.Lng.Degrees()},RadiusMeter:1}
    ca,err:=a.CalculateCovering();if err!=nil {continue}
    cb,err:=b.CalculateCovering();if err!=nil {continue}
+   // Green oracle: the corrected spherical-cap covering must not omit overlap.
+   capA:=geo.RegionCoverer.Covering(s2.CapFromCenterAngle(center,geo.DistanceMetersToAngle(300)))
+   capB:=geo.RegionCoverer.Covering(s2.CapFromCenterAngle(query,geo.DistanceMetersToAngle(1)))
+   if !capA.Intersects(capB) {return false,false}
    if !ca.Intersects(cb) {missed=true}
    fixtures++
    if fixtures==4 {return true,missed}
