@@ -144,6 +144,27 @@ class OIRCircleOverlap(TestScenario):
         """Find four narrow circle overlaps across diagonal S2 cell corners."""
         bounds = self._planning_area.get_extents()
         planning_reference = self._reference(volume)
+        # Cache PlanningArea erosions; all candidates use just two circle radii.
+        allowed_centers = {}
+        if volume.outline_polygon is not None:
+            polygon = Polygon(
+                flatten(planning_reference, vertex.as_s2sphere())
+                for vertex in volume.outline_polygon.vertices
+            )
+            if not polygon.is_valid or polygon.is_empty:
+                raise FixtureUnavailable("Planning Area polygon is invalid")
+            for radius in (self.OIR_RADIUS_M, self.QUERY_RADIUS_M):
+                allowed_centers[radius] = polygon.buffer(
+                    -(radius + self.PLANNING_AREA_MARGIN_M)
+                )
+
+        def fits(center, radius):
+            if not allowed_centers:
+                return self._fits(center, radius, volume, planning_reference)
+            candidate = Point(
+                *flatten(planning_reference, s2sphere.LatLng.from_point(center))
+            )
+            return allowed_centers[radius].covers(candidate)
         cells = {}
         for fx, fy in product(self.SAMPLE_FRACTIONS, repeat=2):
             sample = s2sphere.LatLng.from_degrees(
@@ -186,9 +207,7 @@ class OIRCircleOverlap(TestScenario):
                     continue
                 if not self._circle_in_cell(
                     s2sphere.Cell(query_cell_id), query_center, self.QUERY_RADIUS_M
-                ) or not self._fits(
-                    query_center, self.QUERY_RADIUS_M, volume, planning_reference
-                ):
+                ) or not fits(query_center, self.QUERY_RADIUS_M):
                     continue
 
                 # Work in the tangent plane at the query center. This keeps
@@ -205,9 +224,7 @@ class OIRCircleOverlap(TestScenario):
                         toward_corner * cos(tilt) + sideways * sin(tilt)
                     ).normalize()
                     point = self._move(query_center, direction, distance)
-                    if self._cell(point) == source_id and self._fits(
-                        point, self.OIR_RADIUS_M, volume, planning_reference
-                    ):
+                    if self._cell(point) == source_id and fits(point, self.OIR_RADIUS_M):
                         feasible.append((degree, point))
                 if not feasible:
                     continue
