@@ -90,6 +90,9 @@ func TestResearchGlobalAdaptiveCoverage(t *testing.T){
  const n=10000
  type outcome struct{ valid,red int }
  overall:=outcome{}
+ fixedMinus:=outcome{}
+ fixedPlus:=outcome{}
+ dual:=outcome{}
  bands:=[6]outcome{}
  face:=[6]outcome{}
  redFailureExamples:=0
@@ -97,6 +100,12 @@ func TestResearchGlobalAdaptiveCoverage(t *testing.T){
  for i:=0;i<n;i++{
   lat,lon:=globalLocation(i,n)
   valid,red:=globalAdaptive(lat,lon,0)
+  vm,rm:=sweepFixture(lat,lon,-30)
+  vp,rp:=sweepFixture(lat,lon,30)
+  vd,rd:=sweepFixtureAngles(lat,lon,[]float64{-30,30})
+  if vm {fixedMinus.valid++};if vm&&rm {fixedMinus.red++}
+  if vp {fixedPlus.valid++};if vp&&rp {fixedPlus.red++}
+  if vd {dual.valid++};if vd&&rd {dual.red++}
   if valid {overall.valid++} else {fixtureFailures++;if fixtureFailures<=8 {t.Logf("NO_FIXTURE lat=%.6f lon=%.6f",lat,lon)}}
   if valid&&red {overall.red++} else if valid && redFailureExamples<8 {redFailureExamples++;t.Logf("NO_RED lat=%.6f lon=%.6f",lat,lon)}
   k:=int(math.Min(5,math.Abs(lat)/15))
@@ -106,6 +115,7 @@ func TestResearchGlobalAdaptiveCoverage(t *testing.T){
   if valid {face[f].valid++}; if valid&&red {face[f].red++}
  }
  fmt.Printf("GLOBAL_ADAPTIVE n=%d fixtures=%d old_missed=%d no_fixture=%d\n",n,overall.valid,overall.red,n-overall.valid)
+ fmt.Printf("GLOBAL_COMPARISON n=%d minus30_valid=%d minus30_red=%d plus30_valid=%d plus30_red=%d dual_valid=%d dual_red=%d adaptive_valid=%d adaptive_red=%d\n",n,fixedMinus.valid,fixedMinus.red,fixedPlus.valid,fixedPlus.red,dual.valid,dual.red,overall.valid,overall.red)
  for i,v:=range bands {fmt.Printf("LAT_BAND band=%d-%d fixtures=%d red=%d\n",i*15,(i+1)*15,v.valid,v.red)}
  for i,v:=range face {fmt.Printf("FACE face=%d fixtures=%d red=%d\n",i,v.valid,v.red)}
  special:=[][3]float64{
