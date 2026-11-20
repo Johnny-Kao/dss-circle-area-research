@@ -61,7 +61,7 @@ func sweepFixture(lat,lng, tilt float64) (bool,bool) {
    center:=sweepMove(query,direction,300.9)
    if sweepCell(center)!=id {continue}
    // Both circles must be genuinely intersecting at the specified 0.1m.
-   separation:=center.Distance(query)*earthAngleSweep
+   separation:=float64(center.Distance(query))*earthAngleSweep
    if math.Abs(301-separation-0.1)>0.001 {continue}
    aLL,bLL:=s2.LatLngFromPoint(center),s2.LatLngFromPoint(query)
    a:=GeoCircle{Center:LatLngPoint{Lat:aLL.Lat.Degrees(),Lng:aLL.Lng.Degrees()},RadiusMeter:300}
