@@ -1,0 +1,55 @@
+name: PR1911 staged dual tilt minimal verification
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - staging/pr1911-dual-tilt-minimal
+    paths:
+      - 'staging/pr1911-dual-tilt/**'
+      - '.github/workflows/pr1911-dual-tilt-staging.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout research branch
+        uses: actions/checkout@v4
+        with:
+          path: research
+      - name: Checkout isolated Monitoring reference
+        uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/monitoring
+          ref: staging/pr-1914-upstream-ready
+          path: monitoring
+      - name: Copy exactly the two staged files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp research/staging/pr1911-dual-tilt/oir_circle_overlap.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/staging/pr1911-dual-tilt/oir_circle_overlap.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
+      - uses: astral-sh/setup-uv@v6
+      - name: Install pinned Monitoring test dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Check minimal branch against actual Monitoring geometry
+        working-directory: monitoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          VARIANT=dual_tilt_staged PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../staged-dual-tilt-geometry.log
+      - name: Validate official scenario documentation
+        working-directory: monitoring/monitoring/uss_qualifier
+        env:
+          PYTHONPATH: ../..
+        run: ../../.venv/bin/python scenarios/documentation/validate_documentation.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pr1911-staged-dual-tilt-geometry
+          path: staged-dual-tilt-geometry.log
+          if-no-files-found: ignore
