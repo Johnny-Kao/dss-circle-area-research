@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from implicitdict import ImplicitDict
 
-from monitoring.monitorlib.geo import Circle, Polygon
+from monitoring.monitorlib.geo import Circle, Polygon, Volume3D
 from monitoring.monitorlib.geotemporal import Volume4D
 from monitoring.uss_qualifier.scenarios.astm.utm.dss.oir_circle_overlap import (
     FixtureUnavailable, OIRCircleOverlap,
@@ -27,7 +28,7 @@ def vertices(lat, lon, xy):
 
 def shape(lat,lon,kind,scale):
     if kind=="circle":
-        return Volume4D.from_values(circle=Circle.from_meters(lat,lon,scale)).volume
+        return ImplicitDict.parse(Volume4D.from_values(circle=Circle.from_meters(lat,lon,scale)).volume, Volume3D)
     if kind=="square":
         xy=[(-scale,-scale),(scale,-scale),(scale,scale),(-scale,scale)]
     elif kind=="long":
@@ -40,7 +41,7 @@ def shape(lat,lon,kind,scale):
         xy=[(-scale,-scale),(scale,-scale),(scale,scale),(-scale/3,scale),(-scale/3,0),(-scale,0)]
     else:
         raise ValueError(kind)
-    return Volume4D.from_values(polygon=Polygon.from_coords(vertices(lat,lon,xy))).volume
+    return ImplicitDict.parse(Volume4D.from_values(polygon=Polygon.from_coords(vertices(lat,lon,xy))).volume, Volume3D)
 
 def main():
     kinds=["circle","square","long","triangle","L","concave"]
