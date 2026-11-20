@@ -7,7 +7,7 @@ import (
  "github.com/golang/geo/s2"
  "github.com/interuss/dss/pkg/geo"
 )
-func globalAdaptiveAreaAware(lat,lng,areaRadius float64) (bool,bool) {
+func globalAdaptiveAreaAwareTarget(lat,lng,areaRadius float64, target int) (bool,bool) {
  // Same 7x7 sampling strategy as monitoring PR #1911.
  // Return whether four fixtures exist and whether any is missed by the old DSS.
  halfLat,halfLng:=0.013,0.030
@@ -85,22 +85,28 @@ func globalAdaptiveAreaAware(lat,lng,areaRadius float64) (bool,bool) {
    if !ca.Intersects(cb) {missed=true}
    cornersUsed[cornerKey]=true
    fixtures++
-   if fixtures==4 {return true,missed}
+   if fixtures==target {return true,missed}
   }
  }
  return false,false
 }
 
+func globalAdaptiveAreaAware(lat,lng,areaRadius float64) (bool,bool) {return globalAdaptiveAreaAwareTarget(lat,lng,areaRadius,4)}
+
 func TestResearchAreaAwareAdaptive(t *testing.T){
  for _,radius:=range []float64{350,400,450,500,550,600,650,700,750,850,1000,1500,2500}{
   legacyValid,legacyRed,awareValid,awareRed:=0,0,0,0
+  oneValid,twoValid:=0,0
   for i:=0;i<300;i++{
    lat,lon:=globalLocation(i*31,9300)
    lv,lr:=globalAdaptive(lat,lon,radius)
    av,ar:=globalAdaptiveAreaAware(lat,lon,radius)
+   one,_:=globalAdaptiveAreaAwareTarget(lat,lon,radius,1)
+   two,_:=globalAdaptiveAreaAwareTarget(lat,lon,radius,2)
+   if one {oneValid++};if two {twoValid++}
    if lv {legacyValid++};if lv&&lr {legacyRed++}
    if av {awareValid++};if av&&ar {awareRed++}
   }
-  fmt.Printf("AREA_AWARE radius=%d n=300 baseline_valid=%d baseline_red=%d aware_valid=%d aware_red=%d\n",int(radius),legacyValid,legacyRed,awareValid,awareRed)
+  fmt.Printf("AREA_AWARE radius=%d n=300 baseline_valid=%d baseline_red=%d aware_valid=%d aware_red=%d one_corner=%d two_corners=%d\n",int(radius),legacyValid,legacyRed,awareValid,awareRed,oneValid,twoValid)
  }
 }
