@@ -1,0 +1,45 @@
+name: Research PR1911 dual tilt actual PlanningArea geometry
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/pr1911-dual-tilt-geometry.yml'
+      - 'research/monitoring/adaptive_real_planning_geometry.py'
+permissions:
+  contents: read
+jobs:
+  geometry:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: research
+      - uses: actions/checkout@v4
+        with:
+          repository: Johnny-Kao/monitoring
+          ref: research/pr1911-dual-tilt
+          path: monitoring
+      - uses: astral-sh/setup-uv@v6
+      - name: Install project dependencies
+        working-directory: monitoring
+        run: uv sync --locked --no-install-project --group dev
+      - name: Code lint and Python real shape matrix
+        working-directory: monitoring
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          VARIANT=dual_tilt PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../planning-shapes.log
+      - name: Validate Monitoring scenario documentation
+        working-directory: monitoring/monitoring/uss_qualifier
+        env:
+          PYTHONPATH: ../..
+        run: ../../.venv/bin/python scenarios/documentation/validate_documentation.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adaptive-real-planning-shapes
+          path: planning-shapes.log
+          if-no-files-found: ignore
