@@ -26,6 +26,7 @@ jobs:
           cache-dependency-path: dss/go.sum
       - name: Run angle scan using actual legacy GeoCircle.CalculateCovering
         run: |
+          set -o pipefail
           cp research/research/monitoring/corner_tilt_sweep_test.go dss/pkg/models/corner_tilt_sweep_test.go
           gofmt -w dss/pkg/models/corner_tilt_sweep_test.go
           cd dss
