@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'research/monitoring/oir_circle_overlap_adaptive.py'
+      - 'research/monitoring/oir_circle_overlap_adaptive.md'
       - 'research/monitoring/adaptive_real_planning_geometry.py'
       - '.github/workflows/adaptive-planning-geometry.yml'
 permissions:
@@ -25,6 +26,7 @@ jobs:
       - name: Stage adaptive scenario in isolated checkout
         run: |
           cp research/research/monitoring/oir_circle_overlap_adaptive.py monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
+          cp research/research/monitoring/oir_circle_overlap_adaptive.md monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.md
           python3 - <<'PY'
           from pathlib import Path
           p=Path("monitoring/monitoring/uss_qualifier/scenarios/astm/utm/dss/__init__.py")
@@ -43,6 +45,11 @@ jobs:
           uv run --no-sync ruff check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           uv run --no-sync ruff format --check monitoring/uss_qualifier/scenarios/astm/utm/dss/oir_circle_overlap.py
           PYTHONPATH=. uv run --no-sync python ../research/research/monitoring/adaptive_real_planning_geometry.py | tee ../planning-shapes.log
+      - name: Validate Monitoring scenario documentation
+        working-directory: monitoring/monitoring/uss_qualifier
+        env:
+          PYTHONPATH: ../..
+        run: ../../.venv/bin/python scenarios/documentation/validate_documentation.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
