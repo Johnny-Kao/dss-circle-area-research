@@ -155,6 +155,7 @@ class OIRCircleOverlap(TestScenario):
 
         fixtures = []
         seen_vertices = set()
+
         # Prefer the actual local PlanningArea centre; CellID order is not spatial.
         def cell_distance(cell_id):
             return (
