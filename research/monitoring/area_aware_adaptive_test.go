@@ -111,3 +111,23 @@ func TestResearchAreaAwareAdaptive(t *testing.T){
   fmt.Printf("AREA_AWARE radius=%d n=300 baseline_valid=%d baseline_red=%d aware_valid=%d aware_red=%d one_corner=%d one_red=%d two_corners=%d two_red=%d\n",int(radius),legacyValid,legacyRed,awareValid,awareRed,oneValid,oneRed,twoValid,twoRed)
  }
 }
+
+func TestResearchAdaptiveCoverageBudget(t *testing.T){
+ for _,radius:=range []float64{350,450,500,650,750,850,1000,1500,2500}{
+  count:=[5]int{}
+  red:=[5]int{}
+  for i:=0;i<300;i++{
+   lat,lon:=globalLocation(i*31,9300)
+   for target:=4;target>=1;target--{
+    valid,miss:=globalAdaptiveAreaAwareTarget(lat,lon,radius,target)
+    if valid {
+      count[target]++
+      if miss {red[target]++}
+      break
+    }
+    if target==1 {count[0]++}
+   }
+  }
+  fmt.Printf("DYNAMIC_BUDGET radius=%d n=300 unavailable=%d one=%d red1=%d two=%d red2=%d three=%d red3=%d four=%d red4=%d\n",int(radius),count[0],count[1],red[1],count[2],red[2],count[3],red[3],count[4],red[4])
+ }
+}
