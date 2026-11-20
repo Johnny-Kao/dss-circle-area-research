@@ -74,3 +74,11 @@ Run: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/4479484
 
 ## Decision
 Do not silently turn insufficient fixture geometry into either a DSS conformance failure or a pass. Neither the DSS nor generic PlanningAreaResource contract requires four distinct S2 vertices. The scenario documentation should match the actual desired testing contract (four valid test configurations vs four unique physical vertices), with explicit configuration preconditions. Until that product decision is made, calling adaptive universally superior would be incorrect. A richer angle selector still has code complexity and ~4.5–4.7x fixture-generation runtime cost on these shapes, but test-runtime impact across actual HTTP operations needs separate overall measurement.
+
+## Cached adaptive HTTP regression re-verification
+After introducing polygon erosion caching in `oir_circle_overlap_adaptive.py`, the true Monitoring end-to-end HTTP matrices were run again:
+- Historical DSS v0.23.0 Red: **5/5 success**, each workflow explicitly detects missing genuinely overlapping OIR without execution error. https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44794848686
+- Fixed DSS v0.24.0 Green: **5/5 success**, no unexpected conformance failures. https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44794848612
+- Real Monitoring geometry and documentation CI: success. https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44795053472
+
+These establish that the caching optimization preserved the expected 5-area HTTP Red/Green checks, **not** a proof that arbitrary tiny planning areas can support four unique vertices.
