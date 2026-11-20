@@ -165,6 +165,7 @@ class OIRCircleOverlap(TestScenario):
                 *flatten(planning_reference, s2sphere.LatLng.from_point(center))
             )
             return allowed_centers[radius].covers(candidate)
+
         cells = {}
         for fx, fy in product(self.SAMPLE_FRACTIONS, repeat=2):
             sample = s2sphere.LatLng.from_degrees(
@@ -224,7 +225,9 @@ class OIRCircleOverlap(TestScenario):
                         toward_corner * cos(tilt) + sideways * sin(tilt)
                     ).normalize()
                     point = self._move(query_center, direction, distance)
-                    if self._cell(point) == source_id and fits(point, self.OIR_RADIUS_M):
+                    if self._cell(point) == source_id and fits(
+                        point, self.OIR_RADIUS_M
+                    ):
                         feasible.append((degree, point))
                 if not feasible:
                     continue
