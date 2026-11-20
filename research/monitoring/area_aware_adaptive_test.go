@@ -96,17 +96,18 @@ func globalAdaptiveAreaAware(lat,lng,areaRadius float64) (bool,bool) {return glo
 func TestResearchAreaAwareAdaptive(t *testing.T){
  for _,radius:=range []float64{350,400,450,500,550,600,650,700,750,850,1000,1500,2500}{
   legacyValid,legacyRed,awareValid,awareRed:=0,0,0,0
-  oneValid,twoValid:=0,0
+  oneValid,twoValid,oneRed,twoRed:=0,0,0,0
   for i:=0;i<300;i++{
    lat,lon:=globalLocation(i*31,9300)
    lv,lr:=globalAdaptive(lat,lon,radius)
    av,ar:=globalAdaptiveAreaAware(lat,lon,radius)
-   one,_:=globalAdaptiveAreaAwareTarget(lat,lon,radius,1)
-   two,_:=globalAdaptiveAreaAwareTarget(lat,lon,radius,2)
+   one,red1:=globalAdaptiveAreaAwareTarget(lat,lon,radius,1)
+   two,red2:=globalAdaptiveAreaAwareTarget(lat,lon,radius,2)
    if one {oneValid++};if two {twoValid++}
+   if one&&red1 {oneRed++};if two&&red2 {twoRed++}
    if lv {legacyValid++};if lv&&lr {legacyRed++}
    if av {awareValid++};if av&&ar {awareRed++}
   }
-  fmt.Printf("AREA_AWARE radius=%d n=300 baseline_valid=%d baseline_red=%d aware_valid=%d aware_red=%d one_corner=%d two_corners=%d\n",int(radius),legacyValid,legacyRed,awareValid,awareRed,oneValid,twoValid)
+  fmt.Printf("AREA_AWARE radius=%d n=300 baseline_valid=%d baseline_red=%d aware_valid=%d aware_red=%d one_corner=%d one_red=%d two_corners=%d two_red=%d\n",int(radius),legacyValid,legacyRed,awareValid,awareRed,oneValid,oneRed,twoValid,twoRed)
  }
 }
