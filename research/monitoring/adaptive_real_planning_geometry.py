@@ -1,6 +1,8 @@
 """Public research: actual Monitoring PlanningArea volume geometry, not a polygon proxy."""
 from __future__ import annotations
 
+import os
+from time import perf_counter
 from types import SimpleNamespace
 from implicitdict import ImplicitDict
 
@@ -49,6 +51,7 @@ def main():
     sites=[(37.20,-80.58),(47.37,8.54),(35.68,139.69),(-33.87,151.21),
            (0.0,0.0),(60.17,24.94),(-22.90,-43.20),(52.37,4.90)]
     print("SCENARIO_SOURCE=actual Monitoring _fixtures / _fits")
+    times=[]
     for kind in kinds:
         for scale in [500,750,1000,1500,2500,5000]:
             full=0;unavailable=0;other=0
@@ -60,7 +63,11 @@ def main():
                 # Call exact production-like fixture construction; only record_note is mocked.
                 scenario.record_note=lambda *args,**kwargs: None
                 try:
-                    fixtures=scenario._fixtures(volume)
+                    started=perf_counter()
+                    try:
+                        fixtures=scenario._fixtures(volume)
+                    finally:
+                        times.append(perf_counter()-started)
                     if len(fixtures)!=4:raise AssertionError(f"Unexpected fixture count {len(fixtures)}")
                     full+=1
                 except FixtureUnavailable as e:
@@ -71,6 +78,9 @@ def main():
                     details.append(f"{type(e).__name__}: {e}")
             print(f"REAL_PLANNING shape={kind} scale_m={scale} full={full}/8 unavailable={unavailable} errors={other} examples={details}",flush=True)
             if other:raise AssertionError(f"Unexpected error with {kind},scale={scale}")
+    times.sort()
+    if times:
+        print(f"COST variant={os.getenv('VARIANT','unknown')} calls={len(times)} total_s={sum(times):.6f} median_ms={times[len(times)//2]*1000:.3f} p95_ms={times[min(len(times)-1,int(len(times)*.95))]*1000:.3f} max_ms={times[-1]*1000:.3f}",flush=True)
     # Edge geography must be exercised through Monitoring's exact shape handling.
     unusual=[(85.0,0.0),(89.9,0.0),(-89.9,0.0),
              (0.0,179.9),(0.0,-179.9),(45.0,179.9),(-45.0,-179.9),
