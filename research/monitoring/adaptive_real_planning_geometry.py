@@ -71,4 +71,25 @@ def main():
                     details.append(f"{type(e).__name__}: {e}")
             print(f"REAL_PLANNING shape={kind} scale_m={scale} full={full}/8 unavailable={unavailable} errors={other} examples={details}",flush=True)
             if other:raise AssertionError(f"Unexpected error with {kind},scale={scale}")
+    # Edge geography must be exercised through Monitoring's exact shape handling.
+    unusual=[(85.0,0.0),(89.9,0.0),(-89.9,0.0),
+             (0.0,179.9),(0.0,-179.9),(45.0,179.9),(-45.0,-179.9),
+             (35.2643897,45.0)]
+    for kind in ["circle","square"]:
+        for scale in [1500,5000]:
+            ok=0;unavailable=0;errors=[]
+            for lat,lon in unusual:
+                try:
+                    volume=shape(lat,lon,kind,scale)
+                    scenario=object.__new__(OIRCircleOverlap)
+                    scenario._planning_area=TestArea(volume)
+                    scenario.record_note=lambda *args,**kwargs: None
+                    cases=scenario._fixtures(volume)
+                    if len(cases)!=4:raise AssertionError(len(cases))
+                    ok+=1
+                except FixtureUnavailable:
+                    unavailable+=1
+                except Exception as e:
+                    errors.append(f"{lat},{lon}:{type(e).__name__}:{str(e)[:90]}")
+            print(f"EDGE_PLANNING shape={kind} scale_m={scale} full={ok}/{len(unusual)} unavailable={unavailable} errors={errors}",flush=True)
 if __name__=="__main__":main()
