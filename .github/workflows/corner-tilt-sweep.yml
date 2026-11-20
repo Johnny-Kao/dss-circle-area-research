@@ -1,4 +1,4 @@
-name: Research S2 corner tilt sweep (old DSS oracle)
+name: Research S2 corner tilt global coverage
 on:
   workflow_dispatch:
   push:
@@ -25,26 +25,19 @@ jobs:
         with:
           go-version-file: dss/go.mod
           cache-dependency-path: dss/go.sum
-      - name: Run angle scan using actual legacy GeoCircle.CalculateCovering
+      - name: Run geometry coverage with actual old DSS
+        shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           cp research/research/monitoring/corner_tilt_sweep_test.go dss/pkg/models/corner_tilt_sweep_test.go
           cp research/research/monitoring/global_adaptive_coverage_test.go dss/pkg/models/global_adaptive_coverage_test.go
           gofmt -w dss/pkg/models/corner_tilt_sweep_test.go dss/pkg/models/global_adaptive_coverage_test.go
           cd dss
-          go test -v -count=1 -timeout=40m -run '^TestResearch(CornerTiltSweep|GlobalAdaptiveCoverage) ./pkg/models | tee ../angle-sweep.log
+          go test -v -count=1 -timeout=40m -run 'TestResearch(CornerTiltSweep|GlobalAdaptiveCoverage)' ./pkg/models | tee ../angle-sweep.log
       - name: Upload public experiment log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: corner-tilt-sweep-log
-          path: angle-sweep.log
-          if-no-files-found: ignore
- ./pkg/models | tee ../angle-sweep.log
-      - name: Upload public experiment log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: corner-tilt-sweep-log
+          name: global-corner-tilt-sweep-log
           path: angle-sweep.log
           if-no-files-found: ignore
