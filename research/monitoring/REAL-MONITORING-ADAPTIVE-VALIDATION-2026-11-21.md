@@ -41,7 +41,9 @@ Full five-offset Red and Green runs:
 - Red: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44792648124
 - Green: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44792654672
 
-Their completion needs separate verification; do not claim that 10/10 are green solely from the local geometry tests.
+Final verified completion: five old-DSS Red jobs all SUCCESS (each confirms a clean expected `Overlapping OIR was missing`), and five fixed-DSS v0.24.0 Green jobs all SUCCESS, for 10/10 HTTP matrix jobs. These are five spatially shifted instances of the configured rectangular PlanningArea, **not** every polygon/circle shape exercised over HTTP.
+
+Additional scenario syntax, Ruff format/lint, direct Monitoring fixture geometry and upstream documentation validator completed successfully: https://github.com/Johnny-Kao/dss-circle-area-research/actions/runs/44793459953
 
 ## Interpretation
 This is a *conditionally generalizable* fixture-generation method, not an all-configurations universal guarantee. Geometry must allow four independent corners and full placement of both circles; small/irregular areas can be unsuitable. No amount of angle selection can logically guarantee the same four distinct corners fit arbitrary very small areas.
